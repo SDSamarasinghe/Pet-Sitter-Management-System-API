@@ -524,4 +524,26 @@ export class BookingsService {
 
     return booking;
   }
+
+  /**
+   * Unassign sitter from booking (admin only)
+   */
+  async unassignSitter(bookingId: string): Promise<Booking> {
+    const booking = await this.bookingModel
+      .findByIdAndUpdate(
+        bookingId,
+        { $unset: { sitterId: "" }, status: 'pending' },
+        { new: true }
+      )
+      .populate('userId', 'email address firstName lastName')
+      .populate('sitterId', 'email firstName lastName')
+      .populate('createdBy', 'email firstName lastName role')
+      .exec();
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    return booking;
+  }
 }

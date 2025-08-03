@@ -334,4 +334,18 @@ export class BookingsController {
     
     return this.bookingsService.assignSitter(id, sitterId);
   }
+
+  /**
+   * DELETE /bookings/:id/assign-sitter - Unassign sitter from booking (admin only)
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Delete(':id/assign-sitter')
+  async unassignSitter(@Param('id') id: string) {
+    // Validate booking ID parameter
+    if (!id || id.trim() === '') {
+      throw new BadRequestException('Booking ID is required');
+    }
+    return this.bookingsService.unassignSitter(id);
+  }
 }
