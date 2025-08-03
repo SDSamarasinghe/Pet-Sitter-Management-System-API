@@ -13,6 +13,7 @@ import {
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ApproveUserDto } from './dto/approve-user.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/roles.decorator';
@@ -23,6 +24,38 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   /**
+   * GET /users/admin/sitters - Get all sitters with status (admin only)
+   * Returns all users with role 'sitter' and their status
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Get('admin/sitters')
+  async getAllSitters() {
+    const sitters = await this.usersService.findAllSitters();
+    // Remove passwords from response
+    return sitters.map(user => {
+      const { password, ...result } = user.toObject();
+      return result;
+    });
+  }
+
+  /**
+   * GET /users/admin/clients - Get all clients with status (admin only)
+   * Returns all users with role 'client' and their status
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Get('admin/clients')
+  async getAllClients() {
+    const clients = await this.usersService.findAllClients();
+    // Remove passwords from response
+    return clients.map(user => {
+      const { password, ...result } = user.toObject();
+      return result;
+    });
+  }
+
+  /**
    * Helper method to validate ObjectId
    */
   private isValidObjectId(id: string): boolean {
@@ -30,8 +63,8 @@ export class UsersController {
   }
 
   /**
-   * POST /users - Register a new client
-   * Public endpoint for user registration
+   * POST /users - Register a new user
+   * Public endpoint for user registration (creates pending users)
    */
   @Post()
   async create(@Body() createUserDto: CreateUserDto) {
@@ -39,6 +72,53 @@ export class UsersController {
     // Remove password from response
     const { password, ...result } = user.toObject();
     return result;
+  }
+
+  /**
+   * GET /users/pending - Get all pending users (admin only)
+   * Protected: Only admins can view pending users
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Get('pending')
+  async getPendingUsers() {
+    return this.usersService.findPendingUsers();
+  }
+
+  /**
+   * PUT /users/:id/approve - Approve a pending user (admin only)
+   * Protected: Only admins can approve users
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Put(':id/approve')
+  async approveUser(@Param('id') id: string, @Body() approveUserDto: ApproveUserDto) {
+    // Validate ObjectId format
+    if (!this.isValidObjectId(id)) {
+      throw new BadRequestException('Invalid user ID format');
+    }
+
+    if (approveUserDto.password !== approveUserDto.confirmPassword) {
+      throw new BadRequestException('Passwords do not match');
+    }
+
+    return this.usersService.approveUser(id, approveUserDto.password);
+  }
+
+  /**
+   * PUT /users/:id/reject - Reject a pending user (admin only)
+   * Protected: Only admins can reject users
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Put(':id/reject')
+  async rejectUser(@Param('id') id: string) {
+    // Validate ObjectId format
+    if (!this.isValidObjectId(id)) {
+      throw new BadRequestException('Invalid user ID format');
+    }
+
+    return this.usersService.rejectUser(id);
   }
 
   /**
@@ -72,22 +152,16 @@ export class UsersController {
   }
 
   /**
-   * GET /users/:id - Get user profile by ID
-   * Protected: User can view own profile, admin can view any profile
+   * GET /users/:id - Get user profile by ID (admin only)
+   * Protected: Only admins can view user profiles by ID
    */
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @Get(':id')
-  async findOne(@Param('id') id: string, @Request() req) {
+  async findOne(@Param('id') id: string) {
     // Validate ObjectId format
     if (!this.isValidObjectId(id)) {
       throw new BadRequestException('Invalid user ID format');
-    }
-
-    const currentUser = req.user;
-    
-    // Allow users to view their own profile or admins to view any profile
-    if (id !== currentUser.userId && currentUser.role !== 'admin') {
-      throw new ForbiddenException('You can only view your own profile');
     }
 
     const user = await this.usersService.findById(id);

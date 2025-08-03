@@ -33,6 +33,13 @@ export class User {
   })
   role: string;
 
+  @Prop({ 
+    required: true, 
+    enum: ['active', 'pending', 'rejected'], 
+    default: 'pending' 
+  })
+  status: string; // User status for approval workflow
+
   @Prop({ required: true })
   address: string;
 

@@ -7,69 +7,70 @@ export class CreateUserDto {
 
   @IsString()
   @IsNotEmpty()
-  password: string;
-
-  @IsString()
-  @IsNotEmpty()
   firstName: string;
 
   @IsString()
   @IsNotEmpty()
   lastName: string;
 
-  @IsString()
+  @IsEnum(['client', 'admin', 'sitter'])
   @IsNotEmpty()
-  phoneNumber: string;
+  role: string;
+
+  // Optional fields for full registration
+  @IsString()
+  @IsOptional()
+  password?: string;
+
+  @IsString()
+  @IsOptional()
+  phoneNumber?: string;
 
   @IsUrl()
   @IsOptional()
-  profilePicture?: string; // Cloudinary URL for profile picture
+  profilePicture?: string;
 
   @IsString()
   @IsOptional()
-  extension?: string; // Extension number
-
-  @IsEnum(['client', 'admin', 'sitter'])
-  @IsOptional()
-  role?: string;
-
-  @IsString()
-  @IsNotEmpty()
-  address: string;
+  extension?: string;
 
   @IsString()
   @IsOptional()
-  zipCode?: string; // ZIP/Postal code
+  address?: string;
+
+  @IsString()
+  @IsOptional()
+  zipCode?: string;
 
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
-  areasCovered?: string[]; // ZIP codes for areas covered (sitters)
+  areasCovered?: string[];
 
   @IsArray()
   @IsEnum(['Cat', 'Dog', 'Bird', 'Rabbit'], { each: true })
   @IsOptional()
-  petTypesServiced?: string[]; // Types of pets the sitter services
+  petTypesServiced?: string[];
 
   @IsString()
   @IsOptional()
-  about?: string; // About section for sitters
+  about?: string;
 
   @IsString()
   @IsOptional()
-  cellPhoneNumber?: string; // Cell phone number
+  cellPhoneNumber?: string;
 
   @IsString()
   @IsOptional()
-  homePhoneNumber?: string; // Home phone number
+  homePhoneNumber?: string;
 
   @IsString()
-  @IsNotEmpty()
-  emergencyContact: string;
+  @IsOptional()
+  emergencyContact?: string;
 
   @IsString()
-  @IsNotEmpty()
-  homeCareInfo: string;
+  @IsOptional()
+  homeCareInfo?: string;
 
   @IsEnum(['new', 'existing'])
   @IsOptional()
