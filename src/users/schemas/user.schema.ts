@@ -20,6 +20,12 @@ export class User {
   @Prop({ required: true })
   phoneNumber: string;
 
+  @Prop()
+  profilePicture: string; // Cloudinary URL for profile picture
+
+  @Prop()
+  extension: string; // Extension number (can only be changed once)
+
   @Prop({ 
     required: true, 
     enum: ['client', 'admin', 'sitter'], 
@@ -29,6 +35,24 @@ export class User {
 
   @Prop({ required: true })
   address: string;
+
+  @Prop()
+  zipCode: string; // ZIP/Postal code
+
+  @Prop({ type: [String] })
+  areasCovered: string[]; // ZIP codes for areas covered (sitters)
+
+  @Prop({ type: [String], enum: ['Cat', 'Dog', 'Bird', 'Rabbit'] })
+  petTypesServiced: string[]; // Types of pets the sitter services
+
+  @Prop()
+  about: string; // About section for sitters
+
+  @Prop()
+  cellPhoneNumber: string; // Cell phone number
+
+  @Prop()
+  homePhoneNumber: string; // Home phone number
 
   @Prop() // Pending address change requests (admin approval required)
   pendingAddress: string;

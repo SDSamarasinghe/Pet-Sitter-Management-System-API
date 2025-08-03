@@ -1,6 +1,30 @@
 # Fl## Prerequisites
 
-1. Ensure the API is running on `http://localhost:5001### Register a Client
+1. Ensure the API is running on `h### Register a Sitter
+```bash
+curl -X POST http://localhost:5001/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "dharshiattanayaka@yahoo.com",
+    "password": "password123",
+    "firstName": "Dharshi",
+    "lastName": "A",
+    "phoneNumber": "+1-416-555-0456",
+    "profilePicture": "https://res.cloudinary.com/your_cloud/image/upload/v1234567890/profiles/dharshi.jpg",
+    "extension": "1",
+    "role": "sitter",
+    "address": "25-139, Stephenson Avenue, Toronto. ONT",
+    "zipCode": "M4C 1G2",
+    "areasCovered": ["M4C", "M4E", "M4G"],
+    "petTypesServiced": ["Cat", "Dog", "Bird", "Rabbit"],
+    "about": "Experienced pet sitter with 5+ years of experience caring for cats, dogs, birds, and rabbits.",
+    "cellPhoneNumber": "+1-416-555-0456",
+    "homePhoneNumber": "+1-416-555-0789",
+    "emergencyContact": "+1-416-555-0456",
+    "homeCareInfo": "Experienced with dogs and cats. Available weekends.",
+    "customerType": "existing"
+  }'
+```001### Register a Client
 ```bash
 curl -X POST http://localhost:5001/users 
   -H "Content-Type: application/json" 
