@@ -76,6 +76,62 @@ export class User {
   })
   customerType: string; // New or existing customer
 
+  // Additional profile fields for comprehensive system
+  @Prop()
+  city: string;
+
+  @Prop()
+  state: string;
+
+  @Prop()
+  country: string;
+
+  @Prop({ 
+    enum: ['apartment', 'house', 'condo', 'townhouse', 'other'], 
+  })
+  residenceType: string;
+
+  @Prop()
+  hasYard: boolean;
+
+  @Prop()
+  hasFence: boolean;
+
+  @Prop()
+  smokingHousehold: boolean;
+
+  @Prop()
+  hasOtherPets: boolean;
+
+  @Prop()
+  allergies: string; // Any allergies to be aware of
+
+  @Prop()
+  specialRequirements: string;
+
+  // Preferences for clients
+  @Prop({ type: [String] })
+  preferredSitterGender: string; // 'male', 'female', 'no_preference'
+
+  @Prop()
+  preferredSitterAge: string; // Age range preference
+
+  @Prop()
+  additionalNotes: string;
+
+  // For sitters
+  @Prop()
+  experience: string; // Years of experience
+
+  @Prop()
+  certifications: string; // Any relevant certifications
+
+  @Prop()
+  hourlyRate: number; // Hourly rate for services
+
+  @Prop()
+  availability: string; // General availability
+
   @Prop({ default: Date.now })
   createdAt: Date;
 

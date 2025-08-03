@@ -10,7 +10,11 @@ import {
   Min
 } from 'class-validator';
 
-export class CreateBookingDto {
+export class CreateBookingAdminDto {
+  @IsMongoId()
+  @IsNotEmpty()
+  userId: string; // Client for whom the booking is being created
+
   @IsDateString()
   @IsNotEmpty()
   startDate: string;
@@ -63,4 +67,8 @@ export class CreateBookingDto {
   @IsString()
   @IsOptional()
   clientNotes?: string;
+
+  @IsString()
+  @IsOptional()
+  adminNotes?: string; // Admin notes when creating booking
 }

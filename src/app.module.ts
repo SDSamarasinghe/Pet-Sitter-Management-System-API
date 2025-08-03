@@ -10,6 +10,11 @@ import { PetsModule } from './pets/pets.module';
 import { ReportsModule } from './reports/reports.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { KeySecurityModule } from './key-security/key-security.module';
+import { InvoicesModule } from './invoices/invoices.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { InformationModule } from './information/information.module';
+import { CommentsModule } from './comments/comments.module';
 
 @Module({
   imports: [
@@ -57,6 +62,11 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
     BookingsModule,
     ReportsModule,
     CloudinaryModule,
+    KeySecurityModule,
+    InvoicesModule,
+    ReviewsModule,
+    InformationModule,
+    CommentsModule,
   ],
   controllers: [],
   providers: [],
