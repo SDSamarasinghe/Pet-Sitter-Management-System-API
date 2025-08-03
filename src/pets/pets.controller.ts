@@ -7,7 +7,8 @@ import {
   Body, 
   Param, 
   UseGuards, 
-  Request 
+  Request, 
+  ForbiddenException
 } from '@nestjs/common';
 import { PetsService } from './pets.service';
 import { CreatePetDto } from './dto/create-pet.dto';
@@ -16,6 +17,17 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 @Controller('pets')
 @UseGuards(JwtAuthGuard) // All pet endpoints require authentication
 export class PetsController {
+  /**
+   * GET /pets - Get all pets (admin only)
+   */
+  @Get()
+  async findAll(@Request() req) {
+    const currentUser = req.user;
+    if (currentUser.role !== 'admin') {
+      throw new ForbiddenException('Only admin can view all pets');
+    }
+    return this.petsService.findAll();
+  }
   constructor(private readonly petsService: PetsService) {}
 
   /**

@@ -1,4 +1,125 @@
-# Flying Duchess Pet-Sitting API - Sample API Calls
+# Fl## Prerequisites
+
+1. Ensure the API is running on `http://localhost:5001### Register a Client
+```bash
+curl -X POST http://localhost:5001/users 
+  -H "Content-Type: application/json" 
+  -d '{
+    "email": "client@### Add a Pet (Authenticated)
+```bash
+curl -X P### Create a Booking
+```bash
+curl -X POST http://localhost:5001/bookings 
+  -H "Content-Type: application/json" 
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" 
+  -d '{
+    "startDate": "2025-08-15T10:00:00.000Z",
+    "endDate": "2025-08-20T18:00:00.000Z",
+    "serviceType": "Daily Care",
+    "numberOfPets": 2,
+    "petTypes": ["Cat(s)", "Dog(s)"],
+    "notes": "Please give Fluffy her medication at 9 AM and 6 PM. She hides under the bed sometimes. Dog needs daily walks."
+  }'
+```lhost:5001/pets 
+  -H "Content-Type: application/json" 
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" 
+  -d '{
+    "name": "Fluffy",
+    "type": "Cat(s)",
+    "photo": "https://res.cloudinary.com/your_cloud/image/upload/v1234567890/pets/fluffy.jpg",
+    "breed": "Persian",
+    "age": "3 years",
+    "species": "Cat",
+    "weight": 4.5,
+    "microchipNumber": "123456789012345",
+    "vaccinations": "Up to date - last vaccination: 2025-01-15",
+    "medications": "Thyroid medication once daily",
+    "allergies": "None known",
+    "dietaryRestrictions": "No fish products",
+    "behaviorNotes": "Very friendly but shy with strangers",
+    "emergencyContact": "+1-416-555-0123",
+    "veterinarianInfo": "Dr. Smith, Pet Care Clinic, +1-416-555-0199",
+    "careInstructions": "Needs medication twice daily at 9 AM and 6 PM",
+    "info": "Persian cat, 3 years old, very friendly but shy with strangers. Needs medication twice daily."
+  }'
+```   "password": "password123",
+    "firstName": "Jane",
+    "lastName": "Smith",
+    "phoneNumber": "+1-416-555-0123",
+    "role": "client",
+    "address": "123 Main St, Toronto, ON",
+    "emergencyContact": "+1-416-555-0123",
+    "homeCareInfo": "Two cats, one dog. Cats are indoor only.",
+    "customerType": "new"
+  }'
+```
+
+### Register a Sitter
+```bash
+curl -X POST http://localhost:5001/users 
+  -H "Content-Type: application/json" 
+  -d '{
+    "email": "sitter@example.com",
+    "password": "password123",
+    "firstName": "Mike",
+    "lastName": "Johnson",
+    "phoneNumber": "+1-416-555-0456",
+    "role": "sitter",
+    "address": "456 Oak Ave, Toronto, ON",
+    "emergencyContact": "+1-416-555-0456",
+    "homeCareInfo": "Experienced with dogs and cats. Available weekends.",
+    "customerType": "existing"
+  }'
+```
+
+### Register an Admin
+```bash
+curl -X POST http://localhost:5001/users 
+  -H "Content-Type: application/json" 
+  -d '{
+    "email": "admin@flyingduchess.com",
+    "password": "admin123",
+    "firstName": "Admin",
+    "lastName": "User",
+    "phoneNumber": "+1-416-555-0789",
+    "role": "admin",
+    "address": "789 Admin Blvd, Toronto, ON",
+    "emergencyContact": "+1-416-555-0789",
+    "homeCareInfo": "Flying Duchess administrator",
+    "customerType": "existing"
+  }'
+```DB instance connected
+3. Use a tool like Postman, curl, or any REST client
+
+## 0. Service Inquiry (Public Endpoint)
+
+### Submit Service Inquiry Form
+```bash
+curl -X POST http://localhost:5001/bookings/service-inquiry \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerType": "new",
+    "firstName": "John",
+    "lastName": "Doe",
+    "address": "123 Main St, Unit 4B, Toronto, ON M5V 3A8",
+    "numberOfPets": 2,
+    "petTypes": ["Cat(s)", "Dog(s)"],
+    "startDate": "2025-08-15T09:00:00.000Z",
+    "endDate": "2025-08-20T18:00:00.000Z",
+    "phoneNumber": "+1-416-555-0123",
+    "email": "john.doe@example.com",
+    "additionalDetails": "Cat needs medication twice daily. Dog is very energetic and needs daily walks."
+  }'
+```
+
+**Response:**
+```json
+{
+  "message": "Service inquiry submitted successfully. We will contact you soon!",
+  "bookingId": "booking_id_here",
+  "customerType": "new"
+}
+```Duchess Pet-Sitting API - Sample API Calls
 
 This document provides sample API calls to test the Flying Duchess Pet-Sitting System API.
 
