@@ -140,3 +140,14 @@ export class User {
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+
+// Virtual for pets owned by the user
+UserSchema.virtual('pets', {
+  ref: 'Pet',
+  localField: '_id',
+  foreignField: 'userId',
+});
+
+// Ensure virtuals are included in JSON and Object outputs
+UserSchema.set('toObject', { virtuals: true });
+UserSchema.set('toJSON', { virtuals: true });
