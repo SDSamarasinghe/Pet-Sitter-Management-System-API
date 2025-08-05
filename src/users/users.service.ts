@@ -4,6 +4,7 @@ import { MailerService } from '@nestjs-modules/mailer';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { User, UserDocument } from './schemas/user.schema';
+import { Pet, PetDocument } from '../pets/schemas/pet.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
@@ -11,6 +12,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @InjectModel(Pet.name) private petModel: Model<PetDocument>,
     private mailerService: MailerService,
   ) {}
 
@@ -34,6 +36,23 @@ export class UsersService {
       .find({ role: 'client' })
       .select('-password') // Exclude password from results
       .exec();
+  }
+
+  async findAllClientsWithPets(): Promise<UserDocument[]> {
+    // Get all clients first
+    const clients = await this.userModel
+      .find({ role: 'client' })
+      .select('-password')
+      .exec();
+    
+    // Manually populate pets for each client
+    // Note: We use string conversion because pets.userId is stored as string while user._id is ObjectId
+    for (const client of clients) {
+      const pets = await this.petModel.find({ userId: client._id.toString() }).exec();
+      (client as any).pets = pets;
+    }
+    
+    return clients;
   }
 
   /**
