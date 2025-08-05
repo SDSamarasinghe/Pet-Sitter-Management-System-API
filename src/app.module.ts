@@ -15,6 +15,7 @@ import { InvoicesModule } from './invoices/invoices.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { InformationModule } from './information/information.module';
 import { CommentsModule } from './comments/comments.module';
+import { NotesModule } from './notes/notes.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { CommentsModule } from './comments/comments.module';
     ReviewsModule,
     InformationModule,
     CommentsModule,
+    NotesModule,
   ],
   controllers: [],
   providers: [],
