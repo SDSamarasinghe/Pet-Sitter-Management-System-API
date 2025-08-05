@@ -44,13 +44,26 @@ export class UsersController {
    * Returns all users with role 'client' and their status
    */
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'sitter')
   @Get('admin/clients')
   async getAllClients() {
     const clients = await this.usersService.findAllClients();
     // Remove passwords from response
     return clients.map(user => {
       const { password, ...result } = user.toObject();
+      return result;
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'sitter')
+  @Get('admin/clients-with-pets')
+  async findAllClientsWithPets() {
+    const clients = await this.usersService.findAllClientsWithPets();
+    // Remove passwords from response and return with pets
+    return clients.map(user => {
+      const userObj = user.toObject({ virtuals: true });
+      const { password, ...result } = userObj;
       return result;
     });
   }
