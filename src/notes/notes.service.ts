@@ -34,7 +34,6 @@ export class NotesService {
       attachments: createNoteDto.attachments || [],
     });
     
-    console.log("🚀 ~ NotesService ~ createNote ~ note:", note)
 
 
     const savedNote = await note.save();
@@ -117,9 +116,6 @@ export class NotesService {
     senderId: string, 
     createReplyDto: CreateNoteReplyDto
   ): Promise<NoteDocument> {
-    console.log("🚀 ~ NotesService ~ addReply ~ noteId:", noteId)
-    console.log("🚀 ~ NotesService ~ addReply ~ senderId:", senderId)
-    console.log("🚀 ~ NotesService ~ addReply ~ createReplyDto:", createReplyDto)
     const note = await this.findNoteById(noteId);
     
     // Verify user can reply (must be sender or recipient of original note)
@@ -163,7 +159,6 @@ export class NotesService {
    * Get recent notes (for dashboard/overview)
    */
   async getRecentNotes(userId: string, limit: number = 10): Promise<NoteDocument[]> {
-    console.log("🚀 ~ NotesService ~ getRecentNotes ~ userId:", userId)
     return this.noteModel
       .find({
         $or: [
