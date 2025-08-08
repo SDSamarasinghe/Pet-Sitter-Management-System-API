@@ -62,7 +62,7 @@ export class NotesController {
     @Param('limit') limit?: string,
   ): Promise<NoteDocument[]> {
     const limitNum = limit ? parseInt(limit, 10) : 10;
-    return this.notesService.getRecentNotes(req.user.userId, limitNum);
+    return this.notesService.getRecentNotes(req.user.userId, limitNum, req.user.role);
   }
 
   /**
@@ -76,7 +76,7 @@ export class NotesController {
     @Request() req,
     @Query() query: GetNotesQueryDto,
   ): Promise<{ notes: NoteDocument[], total: number, page: number, limit: number }> {
-    return this.notesService.getNotesForUser(req.user.id, query);
+    return this.notesService.getNotesForUser(req.user.id, query, req.user.role);
   }
 
   /**
@@ -92,7 +92,8 @@ export class NotesController {
     @Param('id') noteId: string,
     @Body() createReplyDto: CreateNoteReplyDto,
   ): Promise<NoteDocument> {
-    return this.notesService.addReply(noteId, req.user.userId, createReplyDto);
+    // Pass user role to service so admin can reply to any note
+    return this.notesService.addReply(noteId, req.user.userId, createReplyDto, req.user.role);
   }
 
   /**
@@ -107,8 +108,8 @@ export class NotesController {
   ): Promise<NoteDocument> {
     const note = await this.notesService.findNoteById(noteId);
     
-    // Ensure user can only view notes they are involved in
-    if (note.senderId.toString() !== req.user.id && note.recipientId.toString() !== req.user.id) {
+    // Admins can view any note, others can only view notes they are involved in
+    if (req.user.role !== 'admin' && note.senderId.toString() !== req.user.id && note.recipientId.toString() !== req.user.id) {
       throw new ForbiddenException('You can only view notes you are involved in');
     }
     

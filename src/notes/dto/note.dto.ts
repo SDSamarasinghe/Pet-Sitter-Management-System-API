@@ -31,6 +31,7 @@ export class CreateNoteDto {
   attachments?: NoteAttachmentDto[];
 }
 
+
 export class CreateNoteReplyDto {
   @IsString()
   @IsNotEmpty()

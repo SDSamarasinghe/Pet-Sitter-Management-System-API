@@ -1,9 +1,44 @@
-import { IsString, IsOptional, IsArray, IsNotEmpty, IsMongoId } from 'class-validator';
+import { IsString, IsOptional, IsObject, IsNotEmpty, IsBoolean } from 'class-validator';
+import { Type } from 'class-transformer';
+
+class AccessPermissionsDto {
+  @IsBoolean()
+  @IsOptional()
+  landlord?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  buildingManagement?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  superintendent?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  housekeeper?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  neighbour?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  friend?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  family?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  none?: boolean;
+}
 
 export class CreateKeySecurityDto {
   @IsString()
-  @IsOptional()
-  lockboxCode?: string;
+  @IsNotEmpty()
+  lockboxCode: string;
 
   @IsString()
   @IsOptional()
@@ -11,43 +46,32 @@ export class CreateKeySecurityDto {
 
   @IsString()
   @IsOptional()
-  alarmCode?: string;
+  alarmCompanyName?: string;
 
   @IsString()
   @IsOptional()
-  alarmInstructions?: string;
+  alarmCompanyPhone?: string;
 
   @IsString()
   @IsOptional()
-  specialInstructions?: string;
+  alarmCodeToEnter?: string;
 
   @IsString()
   @IsOptional()
-  comments?: string;
-
-  @IsArray()
-  @IsOptional()
-  othersWithAccess?: string[];
-
-  @IsArray()
-  @IsOptional()
-  emergencyContacts?: string[];
+  alarmCodeToExit?: string;
 
   @IsString()
   @IsOptional()
-  keyLocation?: string;
+  additionalComments?: string;
+
+  @IsObject()
+  @IsOptional()
+  @Type(() => AccessPermissionsDto)
+  accessPermissions?: AccessPermissionsDto;
 
   @IsString()
   @IsOptional()
-  gateCode?: string;
-
-  @IsString()
-  @IsOptional()
-  wifiNetwork?: string;
-
-  @IsString()
-  @IsOptional()
-  wifiPassword?: string;
+  homeAccessList?: string;
 }
 
 export class UpdateKeySecurityDto extends CreateKeySecurityDto {}

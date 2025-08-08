@@ -41,32 +41,51 @@ export class NotesService {
   }
 
   /**
-   * Get notes for a user (sent or received)
+   * Get notes for a user (sent or received) - admin can see all notes, others only their own
    */
   async getNotesForUser(
     userId: string, 
-    query: GetNotesQueryDto
+    query: GetNotesQueryDto,
+    userRole?: string
   ): Promise<{ notes: NoteDocument[], total: number, page: number, limit: number }> {
     const limit = parseInt(query.limit || '20');
     const page = parseInt(query.page || '1');
     const skip = (page - 1) * limit;
 
-    // Build query - get notes where user is sender or recipient
-    let noteQuery: any = {
-      $or: [
-        { senderId: userId },
-        { recipientId: userId }
-      ]
-    };
+    // Build query
+    let noteQuery: any = {};
 
-    // Filter by specific recipient if provided
-    if (query.recipientId) {
+    // Only admin can see all notes, others (client/sitter) only see notes they're involved in
+    if (userRole === 'admin') {
+      noteQuery = {}; // Empty query to get all notes
+      
+      // If admin filters by specific recipient, show conversation between any users
+      if (query.recipientId) {
+        noteQuery = {
+          $or: [
+            { recipientId: query.recipientId },
+            { senderId: query.recipientId }
+          ]
+        };
+      }
+    } else {
+      // For non-admin users (client/sitter), only show notes they are involved in
       noteQuery = {
         $or: [
-          { senderId: userId, recipientId: query.recipientId },
-          { senderId: query.recipientId, recipientId: userId }
+          { senderId: userId },
+          { recipientId: userId }
         ]
       };
+
+      // Filter by specific recipient if provided
+      if (query.recipientId) {
+        noteQuery = {
+          $or: [
+            { senderId: userId, recipientId: query.recipientId },
+            { senderId: query.recipientId, recipientId: userId }
+          ]
+        };
+      }
     }
 
     const [notes, total] = await Promise.all([
@@ -114,28 +133,30 @@ export class NotesService {
   async addReply(
     noteId: string, 
     senderId: string, 
-    createReplyDto: CreateNoteReplyDto
+    createReplyDto: CreateNoteReplyDto,
+    userRole?: string
   ): Promise<NoteDocument> {
     const note = await this.findNoteById(noteId);
     
-    // Verify user can reply (must be sender or recipient of original note)
-    const senderIdStr = senderId.toString();
-    const noteSenderIdStr = note.senderId?.toString();
-    const noteRecipientIdStr = note.recipientId?.toString();
-    // if (noteSenderIdStr !== senderIdStr && noteRecipientIdStr !== senderIdStr) {
-    //   throw new ForbiddenException('You can only reply to notes you are involved in');
+    // Admin can reply to any note
+    // Others (client/sitter) can only reply to notes they're involved in
+    // if (userRole !== 'admin') {
+    //   const senderIdStr = senderId.toString();
+    //   const noteSenderIdStr = note.senderId?.toString();
+    //   const noteRecipientIdStr = note.recipientId?.toString();
+    //   if (noteSenderIdStr !== senderIdStr && noteRecipientIdStr !== senderIdStr) {
+    //     throw new ForbiddenException('You can only reply to notes you are involved in');
+    //   }
     // }
-
+    
     const reply = {
       senderId: new Types.ObjectId(senderId),
       text: createReplyDto.text,
       attachments: createReplyDto.attachments || [],
       createdAt: new Date(),
     };
-
     note.replies.push(reply);
     note.updatedAt = new Date();
-    
     await note.save();
     return this.findNoteById(noteId);
   }
@@ -156,20 +177,52 @@ export class NotesService {
   }
 
   /**
-   * Get recent notes (for dashboard/overview)
+   * Get recent notes (for dashboard/overview) - admin can see all notes, others only their own
    */
-  async getRecentNotes(userId: string, limit: number = 10): Promise<NoteDocument[]> {
-    return this.noteModel
-      .find({
+  async getRecentNotes(userId: string, limit: number = 10, userRole?: string): Promise<NoteDocument[]> {
+    console.log("🚀 ~ NotesService ~ getRecentNotes ~ userId:", userId)
+    
+    let query: any = {};
+    
+    // Only admin can see all notes, others (client/sitter) only see notes they're involved in
+    if (userRole === 'admin') {
+      query = {}; // Empty query to get all notes
+    } else {
+      // For non-admin users (client/sitter), only show notes they are involved in
+      query = {
         $or: [
           { senderId: userId },
           { recipientId: userId }
         ]
-      })
+      };
+    }
+    
+    const notes = await this.noteModel
+      .find(query)
       .populate('senderId', 'firstName lastName email role')
       .populate('recipientId', 'firstName lastName email role')
+      .populate('replies.senderId', 'firstName lastName email role')
       .sort({ updatedAt: -1 })
       .limit(limit)
       .exec();
+
+    // Ensure each reply includes sender name fields
+    return notes.map(note => {
+      const noteObj = note.toObject();
+      if (Array.isArray(noteObj.replies)) {
+        noteObj.replies = noteObj.replies.map(reply => {
+          // Use type assertion to allow dynamic property
+          const r: any = reply;
+          const sender: any = r.senderId;
+          if (sender && typeof sender === 'object' && (sender.firstName || sender.lastName)) {
+            r.senderName = `${sender.firstName || ''} ${sender.lastName || ''}`.trim();
+          } else {
+            r.senderName = '';
+          }
+          return r;
+        });
+      }
+      return noteObj;
+    });
   }
 }

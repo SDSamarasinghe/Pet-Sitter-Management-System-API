@@ -1,17 +1,102 @@
 # Flying Duchess Pet-Sitting System API
 
-A comprehensive NestJS backend API for managing in-home pet care services in Toronto. This system provides user authentication, profile management, pet management, bookings, and sitter reports with role-based access control.
+## What Can This System Do? (Features for You)
 
-## Features
+- **Easy Login & Security:** Only registered users can access the system, and your data is protected.
+- **Different Views for Each Role:** Admins, sitters, and clients each see only what they need.
+- **Manage Your Profile:** Update your details, change your password, and keep your info current.
+- **Add & Manage Pets:** Store all your pet details, including care, medical, and insurance info.
+- **Book Pet-Sitting Services:** Request, view, and manage bookings for your pets.
+- **See Your Booking History:** Quickly check past and upcoming bookings.
+- **Communicate Easily:** Send messages (notes) to sitters, clients, or admins. Reply to messages and attach images or files.
+- **Comments on Bookings:** Add or view comments for each booking (separate from messages).
+- **Dashboard Overview:** See quick stats like number of pets, bookings, and services at a glance.
+- **Reports & Reviews:** Submit and view reports about pet care, and leave reviews for sitters or services.
+- **Key Management:** Track and manage key handovers securely.
+- **Invoices & Payments:** View and manage your invoices and payment status.
+- **Information Pages:** Access helpful info, FAQs, and policies.
+- **Mobile Friendly:** Works great on your phone, tablet, or computer.
+- **Fast & Reliable:** Built for speed, security, and ease of use.
 
-- **User Management**: Registration, authentication, and profile management
-- **Role-Based Access Control (RBAC)**: Client, Admin, and Sitter roles
-- **Pet Management**: Add, update, and manage pet profiles with Cloudinary image storage
-- **Booking System**: Create and manage pet-sitting appointments
-- **Sitter Reports**: Detailed reports for each pet care session
-- **Address Management**: Admin approval system for address changes
-- **JWT Authentication**: Secure token-based authentication
-- **MongoDB Integration**: Scalable document database storage
+If you have any questions or need help, just ask the Flying Duchess team!
+
+---
+
+## Full Feature List
+
+### 1. Role-Based Dashboard
+- Separate dashboards for Admin, Sitter, and Client
+- Tab navigation for quick access to relevant sections
+
+### 2. User Authentication & Authorization
+- JWT-based authentication
+- Role-based access control for all endpoints
+- Secure profile management (view, update, password change)
+
+### 3. Client & Sitter Management
+- Admin: View, search, approve, reject, and manage all users
+- Sitter: View assigned clients, search clients, view client details
+- Client: View own profile and pets
+
+### 4. Pet Management
+- Add, edit, and delete pets
+- View all pets for a user
+- Expandable pet details with tabbed info (Basic, Care, Medical, Insurance)
+
+### 5. Bookings Management
+- Create, view, update, and delete bookings
+- Assign/unassign sitters to bookings (admin)
+- View booking history (client, sitter)
+- Recent bookings overview
+- Booking status tracking
+
+### 6. Communication System (Notes)
+- Send notes/messages between users (admin, sitter, client)
+- Reply to notes (threaded conversation)
+- Filter notes by user
+- Attachments support (images, files)
+- Sender/recipient display as “You” for current user
+- Only users involved in a note can view/reply
+
+### 7. Comments on Bookings
+- Separate from notes system
+- Add/view comments on specific bookings
+
+### 8. Overview & Analytics
+- Dashboard cards for:
+  - Total pets
+  - Total bookings
+  - Total services
+- Recent activity lists
+
+### 9. Reports & Reviews
+- Submit/view reports (admin, sitter, client)
+- Submit/view reviews for sitters/services
+
+### 10. Key Security Management
+- Manage and track key handovers for clients
+
+### 11. Invoices & Payments
+- Generate, view, and manage invoices
+- Payment status tracking
+
+### 12. Information Pages
+- Static and dynamic information pages (FAQs, policies, etc.)
+
+### 13. Cloudinary Integration
+- Image/file upload support for pets, notes, and profiles
+
+### 14. Responsive UI & Modern Design
+- Built with shadcn/ui (or similar)
+- Mobile-friendly, modern look and feel
+
+### 15. Error Handling & Loading States
+- Consistent error messages and status codes
+- Loading indicators and user feedback throughout the app
+
+### 16. Security
+- All endpoints protected by authentication and role checks
+- Data validation and sanitization
 
 ## Tech Stack
 
