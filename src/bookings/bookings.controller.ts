@@ -183,6 +183,25 @@ export class BookingsController {
     );
   }
 
+    /**
+   * PUT /bookings/:id/payment-status - Update payment status (admin only)
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Put(':id/payment-status')
+  async updatePaymentStatus(
+    @Param('id') id: string,
+    @Body() body: { paymentStatus: string }
+  ) {
+    if (!id || id.trim() === '') {
+      throw new BadRequestException('Booking ID is required');
+    }
+    if (!body.paymentStatus) {
+      throw new BadRequestException('paymentStatus is required');
+    }
+    return this.bookingsService.updatePaymentStatus(id, body.paymentStatus);
+  }
+
   /**
    * GET /bookings/stats/:clientId? - Get booking statistics
    */

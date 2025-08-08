@@ -546,4 +546,24 @@ export class BookingsService {
 
     return booking;
   }
+
+    /**
+   * Update payment status (admin only)
+   */
+  async updatePaymentStatus(bookingId: string, paymentStatus: string): Promise<Booking> {
+    const allowedStatuses = ['pending', 'partial', 'paid', 'refunded'];
+    if (!allowedStatuses.includes(paymentStatus)) {
+      throw new BadRequestException('Invalid payment status');
+    }
+    const booking = await this.bookingModel.findByIdAndUpdate(
+      bookingId,
+      { paymentStatus },
+      { new: true }
+    ).exec();
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+    return booking;
+  }
+
 }

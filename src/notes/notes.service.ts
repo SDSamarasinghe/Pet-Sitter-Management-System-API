@@ -180,7 +180,6 @@ export class NotesService {
    * Get recent notes (for dashboard/overview) - admin can see all notes, others only their own
    */
   async getRecentNotes(userId: string, limit: number = 10, userRole?: string): Promise<NoteDocument[]> {
-    console.log("🚀 ~ NotesService ~ getRecentNotes ~ userId:", userId)
     
     let query: any = {};
     
