@@ -1,0 +1,113 @@
+name: Deploy API to Azure VM
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.HOST_IP }} >> ~/.ssh/known_hosts
+        
+    - name: Deploy to Azure VM
+      run: |
+        ssh -i ~/.ssh/id_rsa azureuser@${{ secrets.HOST_IP }} << 'EOF'
+          set -e
+          
+          echo "🔄 Starting API deployment..."
+          
+          # Navigate to home directory
+          cd ~
+          
+          # Update API repository
+          echo "📥 Updating API repository..."
+          if [ -d "Pet-Sitter-Management-System-API" ]; then
+            cd Pet-Sitter-Management-System-API
+            git pull origin master || {
+              echo "⚠️ Git pull failed, trying to reset..."
+              git reset --hard HEAD
+              git pull origin master
+            }
+            cd ..
+          else
+            echo "📥 Cloning API repository..."
+            git clone https://github.com/SDSamarasinghe/Pet-Sitter-Management-System-API.git
+          fi
+          
+          # Create/update docker-compose.yml
+          echo "📝 Creating docker-compose.yml..."
+          cat > docker-compose.yml << 'COMPOSE_EOF'
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ./Pet-Sitter-Management-System-API
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - NODE_ENV=production
+      - PORT=8000
+      - MONGODB_URI=mongodb+srv://askobarpabblo:UP7yTX2uJJdlv0e7@petcare.8kqi8ez.mongodb.net/flyingduchess?retryWrites=true&w=majority
+      - JWT_SECRET=FlyingDuchess_PetSitting_JWT_Secret_Key_2025_SecureToken
+      - JWT_EXPIRES_IN=24h
+      - CLOUDINARY_CLOUD_NAME=dnutx6czj
+      - CLOUDINARY_API_KEY=362787522778931
+      - CLOUDINARY_API_SECRET=1Rd5hyyO-p1VrsCrFNXpX6btd78
+      - MAIL_USER=lksadish@gmail.com
+      - MAIL_PASS=bflnrivyukjjibyk
+      - MAIL_FROM=lksadish@gmail.com
+      - MAIL_HOST=smtp.gmail.com
+      - MAIL_PORT=587
+    restart: unless-stopped
+    networks:
+      - pet-sitter-network
+
+networks:
+  pet-sitter-network:
+    driver: bridge
+COMPOSE_EOF
+          
+          # Stop existing containers
+          echo "🛑 Stopping existing containers..."
+          docker-compose down || true
+          
+          # Clean up old images
+          echo "🧹 Cleaning up old Docker images..."
+          docker system prune -f || true
+          
+          # Build and start containers
+          echo "🔨 Building and starting API container..."
+          docker-compose build --no-cache api
+          docker-compose up -d api
+          
+          # Wait for container to start
+          echo "⏳ Waiting for container to start..."
+          sleep 15
+          
+          # Show container status
+          echo "📊 Container status:"
+          docker-compose ps
+          
+          # Show API logs
+          echo "📋 Recent API logs:"
+          docker-compose logs api --tail=20
+          
+          echo "✅ API deployment completed!"
+        EOF
+
+env:
+  HOST_IP: ${{ secrets.HOST_IP }}
+  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
