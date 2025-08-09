@@ -6,6 +6,12 @@ import { CreatePetDto } from './dto/create-pet.dto';
 
 @Injectable()
 export class PetsService {
+  /**
+   * Get all pets (admin only)
+   */
+  async findAll(): Promise<Pet[]> {
+    return this.petModel.find().populate('userId', 'email').exec();
+  }
   constructor(
     @InjectModel(Pet.name) private petModel: Model<PetDocument>,
   ) {}

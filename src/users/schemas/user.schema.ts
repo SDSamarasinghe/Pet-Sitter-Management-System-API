@@ -20,6 +20,12 @@ export class User {
   @Prop({ required: true })
   phoneNumber: string;
 
+  @Prop()
+  profilePicture: string; // Cloudinary URL for profile picture
+
+  @Prop()
+  extension: string; // Extension number (can only be changed once)
+
   @Prop({ 
     required: true, 
     enum: ['client', 'admin', 'sitter'], 
@@ -27,8 +33,33 @@ export class User {
   })
   role: string;
 
+  @Prop({ 
+    required: true, 
+    enum: ['active', 'pending', 'rejected'], 
+    default: 'pending' 
+  })
+  status: string; // User status for approval workflow
+
   @Prop({ required: true })
   address: string;
+
+  @Prop()
+  zipCode: string; // ZIP/Postal code
+
+  @Prop({ type: [String] })
+  areasCovered: string[]; // ZIP codes for areas covered (sitters)
+
+  @Prop({ type: [String], enum: ['Cat', 'Dog', 'Bird', 'Rabbit'] })
+  petTypesServiced: string[]; // Types of pets the sitter services
+
+  @Prop()
+  about: string; // About section for sitters
+
+  @Prop()
+  cellPhoneNumber: string; // Cell phone number
+
+  @Prop()
+  homePhoneNumber: string; // Home phone number
 
   @Prop() // Pending address change requests (admin approval required)
   pendingAddress: string;
@@ -45,6 +76,62 @@ export class User {
   })
   customerType: string; // New or existing customer
 
+  // Additional profile fields for comprehensive system
+  @Prop()
+  city: string;
+
+  @Prop()
+  state: string;
+
+  @Prop()
+  country: string;
+
+  @Prop({ 
+    enum: ['apartment', 'house', 'condo', 'townhouse', 'other'], 
+  })
+  residenceType: string;
+
+  @Prop()
+  hasYard: boolean;
+
+  @Prop()
+  hasFence: boolean;
+
+  @Prop()
+  smokingHousehold: boolean;
+
+  @Prop()
+  hasOtherPets: boolean;
+
+  @Prop()
+  allergies: string; // Any allergies to be aware of
+
+  @Prop()
+  specialRequirements: string;
+
+  // Preferences for clients
+  @Prop({ type: [String] })
+  preferredSitterGender: string; // 'male', 'female', 'no_preference'
+
+  @Prop()
+  preferredSitterAge: string; // Age range preference
+
+  @Prop()
+  additionalNotes: string;
+
+  // For sitters
+  @Prop()
+  experience: string; // Years of experience
+
+  @Prop()
+  certifications: string; // Any relevant certifications
+
+  @Prop()
+  hourlyRate: number; // Hourly rate for services
+
+  @Prop()
+  availability: string; // General availability
+
   @Prop({ default: Date.now })
   createdAt: Date;
 
@@ -53,3 +140,14 @@ export class User {
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+
+// Virtual for pets owned by the user
+UserSchema.virtual('pets', {
+  ref: 'Pet',
+  localField: '_id',
+  foreignField: 'userId',
+});
+
+// Ensure virtuals are included in JSON and Object outputs
+UserSchema.set('toObject', { virtuals: true });
+UserSchema.set('toJSON', { virtuals: true });

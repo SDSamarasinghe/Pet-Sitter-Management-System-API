@@ -27,7 +27,37 @@ export class Pet {
   age: string; // Pet age
 
   @Prop()
-  medication: string; // Medication details
+  species: string; // Cat, Dog, etc.
+
+  @Prop()
+  weight: number; // Pet weight
+
+  @Prop()
+  microchipNumber: string;
+
+  @Prop()
+  vaccinations: string; // Vaccination history
+
+  @Prop()
+  medications: string; // Current medications
+
+  @Prop()
+  allergies: string; // Known allergies
+
+  @Prop()
+  dietaryRestrictions: string;
+
+  @Prop()
+  behaviorNotes: string;
+
+  @Prop()
+  emergencyContact: string; // Pet-specific emergency contact
+
+  @Prop()
+  veterinarianInfo: string; // Vet contact information
+
+  @Prop()
+  careInstructions: string; // Specific care instructions
 
   @Prop({ required: true })
   info: string; // General pet information and special needs

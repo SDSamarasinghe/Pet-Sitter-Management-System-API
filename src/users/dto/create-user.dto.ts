@@ -1,13 +1,9 @@
-import { IsEmail, IsString, IsNotEmpty, IsOptional, IsEnum } from 'class-validator';
+import { IsEmail, IsString, IsNotEmpty, IsOptional, IsEnum, IsArray, IsUrl } from 'class-validator';
 
 export class CreateUserDto {
   @IsEmail()
   @IsNotEmpty()
   email: string;
-
-  @IsString()
-  @IsNotEmpty()
-  password: string;
 
   @IsString()
   @IsNotEmpty()
@@ -17,25 +13,64 @@ export class CreateUserDto {
   @IsNotEmpty()
   lastName: string;
 
-  @IsString()
-  @IsNotEmpty()
-  phoneNumber: string;
-
   @IsEnum(['client', 'admin', 'sitter'])
+  @IsNotEmpty()
+  role: string;
+
+  // Optional fields for full registration
+  @IsString()
   @IsOptional()
-  role?: string;
+  password?: string;
 
   @IsString()
-  @IsNotEmpty()
-  address: string;
+  @IsOptional()
+  phoneNumber?: string;
+
+  @IsUrl()
+  @IsOptional()
+  profilePicture?: string;
 
   @IsString()
-  @IsNotEmpty()
-  emergencyContact: string;
+  @IsOptional()
+  extension?: string;
 
   @IsString()
-  @IsNotEmpty()
-  homeCareInfo: string;
+  @IsOptional()
+  address?: string;
+
+  @IsString()
+  @IsOptional()
+  zipCode?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  areasCovered?: string[];
+
+  @IsArray()
+  @IsEnum(['Cat', 'Dog', 'Bird', 'Rabbit'], { each: true })
+  @IsOptional()
+  petTypesServiced?: string[];
+
+  @IsString()
+  @IsOptional()
+  about?: string;
+
+  @IsString()
+  @IsOptional()
+  cellPhoneNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  homePhoneNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  emergencyContact?: string;
+
+  @IsString()
+  @IsOptional()
+  homeCareInfo?: string;
 
   @IsEnum(['new', 'existing'])
   @IsOptional()

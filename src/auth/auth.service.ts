@@ -34,10 +34,23 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Check if user account is approved (only for sitters - admins and clients can login regardless of status)
+    if (user.role === 'sitter' && user.status !== 'active') {
+      if (user.status === 'pending') {
+        throw new UnauthorizedException('Your sitter account is pending approval. Please wait for admin approval.');
+      } else if (user.status === 'rejected') {
+        throw new UnauthorizedException('Your sitter account has been rejected. Please contact support.');
+      } else {
+        throw new UnauthorizedException('Your sitter account is not active. Please contact support.');
+      }
+    }
+
     const payload = { 
       email: user.email, 
       userId: user._id, 
-      role: user.role 
+      role: user.role,
+      firstName: user.firstName,
+      lastName: user.lastName
     };
 
     return {

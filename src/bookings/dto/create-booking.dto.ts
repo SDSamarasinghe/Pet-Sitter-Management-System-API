@@ -1,4 +1,14 @@
-import { IsString, IsNotEmpty, IsDateString, IsOptional, IsNumber, IsArray, IsEnum } from 'class-validator';
+import { 
+  IsString, 
+  IsNotEmpty, 
+  IsDateString, 
+  IsOptional, 
+  IsNumber, 
+  IsArray, 
+  IsEnum,
+  IsMongoId,
+  Min
+} from 'class-validator';
 
 export class CreateBookingDto {
   @IsDateString()
@@ -14,7 +24,7 @@ export class CreateBookingDto {
   serviceType: string;
 
   @IsNumber()
-  @IsNotEmpty()
+  @Min(1)
   numberOfPets: number;
 
   @IsArray()
@@ -25,4 +35,32 @@ export class CreateBookingDto {
   @IsString()
   @IsOptional()
   notes?: string; // Additional details like medication, special care
+
+  @IsMongoId()
+  @IsOptional()
+  sitterId?: string; // Preferred sitter ID
+
+  @IsNumber()
+  @Min(0)
+  totalAmount: number;
+
+  @IsString()
+  @IsOptional()
+  serviceAddress?: string;
+
+  @IsString()
+  @IsOptional()
+  emergencyContact?: string;
+
+  @IsString()
+  @IsOptional()
+  emergencyPhone?: string;
+
+  @IsString()
+  @IsOptional()
+  specialInstructions?: string;
+
+  @IsString()
+  @IsOptional()
+  clientNotes?: string;
 }
