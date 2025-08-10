@@ -141,6 +141,48 @@ export class UploadController {
     }
   }
 
+  @Post('note-image')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadNoteImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Request() req
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    // Validate file type
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      throw new BadRequestException('Only image files are allowed (JPEG, PNG, GIF, WebP)');
+    }
+
+    // Validate file size (5MB limit for note images)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      throw new BadRequestException('File size must be less than 5MB');
+    }
+
+    try {
+      const fileName = this.azureBlobService.generateFileName(file.originalname, 'note');
+      const url = await this.azureBlobService.uploadFile(file, fileName);
+
+      return {
+        success: true,
+        url,
+        fileName,
+        originalName: file.originalname,
+        size: file.size,
+        mimeType: file.mimetype,
+        uploadedBy: req.user.userId,
+        type: 'note-image',
+      };
+    } catch (error) {
+      throw new BadRequestException(`Upload failed: ${error.message}`);
+    }
+  }
+
   @Post('pet-photo')
   @UseInterceptors(FileInterceptor('file'))
   async uploadPetPhoto(
