@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsNotEmpty, IsOptional, IsEnum, IsArray, IsUrl } from 'class-validator';
+import { IsEmail, IsString, IsNotEmpty, IsOptional, IsEnum, IsArray, IsUrl, Matches } from 'class-validator';
 
 export class CreateUserDto {
   @IsEmail()
@@ -26,7 +26,7 @@ export class CreateUserDto {
   @IsOptional()
   phoneNumber?: string;
 
-  @IsUrl()
+  @Matches(/^(https?:\/\/)|(^$)/, { message: 'profilePicture must be a valid URL or empty' })
   @IsOptional()
   profilePicture?: string;
 

@@ -17,8 +17,11 @@ export class Pet {
   })
   type: string; // Type of pet
 
-  @Prop() // Optional - Cloudinary URL for pet photo
+  @Prop() // Optional - Photo URL from Azure Blob Storage
   photo: string;
+
+  @Prop() // Optional - Additional photos array
+  photos: string[];
 
   @Prop()
   breed: string; // Pet breed

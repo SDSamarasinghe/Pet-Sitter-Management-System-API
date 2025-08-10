@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsUrl, IsOptional, IsEnum, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsUrl, IsOptional, IsEnum, IsNumber, Matches } from 'class-validator';
 
 export class CreatePetDto {
   @IsString()
@@ -9,9 +9,9 @@ export class CreatePetDto {
   @IsOptional()
   type?: string;
 
-  @IsUrl()
+  @Matches(/^(https?:\/\/)|(^$)/, { message: 'photo must be a valid URL or empty' })
   @IsOptional()
-  photo?: string; // Optional - Cloudinary URL
+  photo?: string; // Optional - Azure Blob or Cloudinary URL
 
   @IsString()
   @IsOptional()
