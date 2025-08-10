@@ -2,7 +2,7 @@
 
 1. Ensure the API is running on `h### Register a Sitter
 ```bash
-curl -X POST http://localhost:5001/users \
+curl -X POST http://localhost:8000/users \
   -H "Content-Type: application/json" \
   -d '{
     "email": "dharshiattanayaka@yahoo.com",
@@ -26,14 +26,14 @@ curl -X POST http://localhost:5001/users \
   }'
 ```001### Register a Client
 ```bash
-curl -X POST http://localhost:5001/users 
+curl -X POST http://localhost:8000/users 
   -H "Content-Type: application/json" 
   -d '{
     "email": "client@### Add a Pet (Authenticated)
 ```bash
 curl -X P### Create a Booking
 ```bash
-curl -X POST http://localhost:5001/bookings 
+curl -X POST http://localhost:8000/bookings 
   -H "Content-Type: application/json" 
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" 
   -d '{
@@ -80,7 +80,7 @@ curl -X POST http://localhost:5001/bookings
 
 ### Register a Sitter
 ```bash
-curl -X POST http://localhost:5001/users 
+curl -X POST http://localhost:8000/users 
   -H "Content-Type: application/json" 
   -d '{
     "email": "sitter@example.com",
@@ -98,7 +98,7 @@ curl -X POST http://localhost:5001/users
 
 ### Register an Admin
 ```bash
-curl -X POST http://localhost:5001/users 
+curl -X POST http://localhost:8000/users 
   -H "Content-Type: application/json" 
   -d '{
     "email": "admin@flyingduchess.com",
@@ -119,7 +119,7 @@ curl -X POST http://localhost:5001/users
 
 ### Submit Service Inquiry Form
 ```bash
-curl -X POST http://localhost:5001/bookings/service-inquiry \
+curl -X POST http://localhost:8000/bookings/service-inquiry \
   -H "Content-Type: application/json" \
   -d '{
     "customerType": "new",
@@ -149,7 +149,7 @@ This document provides sample API calls to test the Flying Duchess Pet-Sitting S
 
 ## Prerequisites
 
-1. Ensure the API is running on `http://localhost:5001`
+1. Ensure the API is running on `http://localhost:8000`
 2. Have a MongoDB instance connected
 3. Use a tool like Postman, curl, or any REST client
 
@@ -157,7 +157,7 @@ This document provides sample API calls to test the Flying Duchess Pet-Sitting S
 
 ### Submit Service Inquiry Form
 ```bash
-curl -X POST http://localhost:5001/bookings/service-inquiry \
+curl -X POST http://localhost:8000/bookings/service-inquiry \
   -H "Content-Type: application/json" \
   -d '{
     "customerType": "new",
@@ -187,7 +187,7 @@ curl -X POST http://localhost:5001/bookings/service-inquiry \
 
 ### Register a Client
 ```bash
-curl -X POST http://localhost:5001/users \
+curl -X POST http://localhost:8000/users \
   -H "Content-Type: application/json" \
   -d '{
     "email": "client@example.com",
@@ -205,7 +205,7 @@ curl -X POST http://localhost:5001/users \
 
 ### Register a Sitter
 ```bash
-curl -X POST http://localhost:5001/users \
+curl -X POST http://localhost:8000/users \
   -H "Content-Type: application/json" \
   -d '{
     "email": "sitter@example.com",
@@ -223,7 +223,7 @@ curl -X POST http://localhost:5001/users \
 
 ### Register an Admin
 ```bash
-curl -X POST http://localhost:5001/users \
+curl -X POST http://localhost:8000/users \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@flyingduchess.com",
@@ -243,7 +243,7 @@ curl -X POST http://localhost:5001/users \
 
 ### Login
 ```bash
-curl -X POST http://localhost:5001/auth/login \
+curl -X POST http://localhost:8000/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "client@example.com",
@@ -276,7 +276,7 @@ curl -X POST http://localhost:5001/auth/login \
 
 ### Add a Pet (Authenticated)
 ```bash
-curl -X POST http://localhost:5001/pets \
+curl -X POST http://localhost:8000/pets \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -d '{
@@ -292,7 +292,7 @@ curl -X POST http://localhost:5001/pets \
 
 ### Get User's Pets
 ```bash
-curl -X GET http://localhost:5001/pets/user/USER_ID \
+curl -X GET http://localhost:8000/pets/user/USER_ID \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -300,7 +300,7 @@ curl -X GET http://localhost:5001/pets/user/USER_ID \
 
 ### Create a Booking
 ```bash
-curl -X POST http://localhost:5001/bookings \
+curl -X POST http://localhost:8000/bookings \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -d '{
@@ -315,13 +315,13 @@ curl -X POST http://localhost:5001/bookings \
 
 ### Get User's Bookings
 ```bash
-curl -X GET http://localhost:5001/bookings/user/USER_ID \
+curl -X GET http://localhost:8000/bookings/user/USER_ID \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
 ### Admin: Assign Sitter to Booking
 ```bash
-curl -X PUT http://localhost:5001/bookings/BOOKING_ID/assign-sitter \
+curl -X PUT http://localhost:8000/bookings/BOOKING_ID/assign-sitter \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ADMIN_ACCESS_TOKEN" \
   -d '{
@@ -333,7 +333,7 @@ curl -X PUT http://localhost:5001/bookings/BOOKING_ID/assign-sitter \
 
 ### Create a Report
 ```bash
-curl -X POST http://localhost:5001/reports \
+curl -X POST http://localhost:8000/reports \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer SITTER_ACCESS_TOKEN" \
   -d '{
@@ -352,7 +352,7 @@ curl -X POST http://localhost:5001/reports \
 
 ### Get Reports for a User
 ```bash
-curl -X GET http://localhost:5001/reports/user/USER_ID \
+curl -X GET http://localhost:8000/reports/user/USER_ID \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -360,7 +360,7 @@ curl -X GET http://localhost:5001/reports/user/USER_ID \
 
 ### Update Profile (Client)
 ```bash
-curl -X PUT http://localhost:5001/users/USER_ID \
+curl -X PUT http://localhost:8000/users/USER_ID \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -d '{
@@ -375,13 +375,13 @@ curl -X PUT http://localhost:5001/users/USER_ID \
 
 ### Admin: Approve Address Change
 ```bash
-curl -X PUT http://localhost:5001/users/USER_ID/approve-address \
+curl -X PUT http://localhost:8000/users/USER_ID/approve-address \
   -H "Authorization: Bearer ADMIN_ACCESS_TOKEN"
 ```
 
 ### Admin: Get Pending Address Requests
 ```bash
-curl -X GET http://localhost:5001/users/admin/pending-addresses \
+curl -X GET http://localhost:8000/users/admin/pending-addresses \
   -H "Authorization: Bearer ADMIN_ACCESS_TOKEN"
 ```
 
@@ -389,13 +389,13 @@ curl -X GET http://localhost:5001/users/admin/pending-addresses \
 
 ### Get All Bookings (Admin)
 ```bash
-curl -X GET http://localhost:5001/bookings \
+curl -X GET http://localhost:8000/bookings \
   -H "Authorization: Bearer ADMIN_ACCESS_TOKEN"
 ```
 
 ### Get All Reports (Admin)
 ```bash
-curl -X GET http://localhost:5001/reports \
+curl -X GET http://localhost:8000/reports \
   -H "Authorization: Bearer ADMIN_ACCESS_TOKEN"
 ```
 
