@@ -1,9 +1,7 @@
 pipeline {
     agent any
     
-    tools {
-        nodejs 'NodeJS-18'
-    }
+
     
     environment {
         DOCKER_IMAGE = 'pet-sitter-api'
