@@ -18,6 +18,15 @@ pipeline {
             steps {
                 script {
                     sh '''
+                        # Stop any container using port 8000
+                        EXISTING_CONTAINER=$(docker ps --filter "publish=8000" --format "{{.Names}}" | head -1)
+                        if [ ! -z "$EXISTING_CONTAINER" ]; then
+                            echo "Stopping existing container using port 8000: $EXISTING_CONTAINER"
+                            docker stop $EXISTING_CONTAINER || true
+                            docker rm $EXISTING_CONTAINER || true
+                        fi
+                        
+                        # Also stop our specific container name if it exists
                         docker stop ${CONTAINER_NAME} || true
                         docker rm ${CONTAINER_NAME} || true
                         docker rmi ${DOCKER_IMAGE}:latest || true
