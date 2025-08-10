@@ -16,6 +16,8 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { InformationModule } from './information/information.module';
 import { CommentsModule } from './comments/comments.module';
 import { NotesModule } from './notes/notes.module';
+import { AzureBlobModule } from './azure-blob/azure-blob.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -69,6 +71,8 @@ import { NotesModule } from './notes/notes.module';
     InformationModule,
     CommentsModule,
     NotesModule,
+    AzureBlobModule,
+    UploadModule,
   ],
   controllers: [],
   providers: [],
