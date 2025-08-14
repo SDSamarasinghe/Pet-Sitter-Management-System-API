@@ -55,6 +55,8 @@ pipeline {
                         -e CLOUDINARY_CLOUD_NAME=dnutx6czj \\
                         -e CLOUDINARY_API_KEY=362787522778931 \\
                         -e CLOUDINARY_API_SECRET=1Rd5hyyO-p1VrsCrFNXpX6btd78 \\
+                        -e AZURE_STORAGE_CONNECTION_STRING="${AZURE_STORAGE_CONNECTION_STRING}" \\
+                        -e AZURE_STORAGE_CONTAINER_NAME=pet-images \\
                         -e MAIL_USER=lksadish@gmail.com \\
                         -e MAIL_PASS=bflnrivyukjjibyk \\
                         -e MAIL_FROM=lksadish@gmail.com \\
