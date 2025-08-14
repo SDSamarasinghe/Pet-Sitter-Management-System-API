@@ -18,6 +18,7 @@ import { CommentsModule } from './comments/comments.module';
 import { NotesModule } from './notes/notes.module';
 import { AzureBlobModule } from './azure-blob/azure-blob.module';
 import { UploadModule } from './upload/upload.module';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
@@ -74,7 +75,7 @@ import { UploadModule } from './upload/upload.module';
     AzureBlobModule,
     UploadModule,
   ],
-  controllers: [],
+  controllers: [HealthController],
   providers: [],
 })
 export class AppModule {}
