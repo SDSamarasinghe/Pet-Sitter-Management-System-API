@@ -7,6 +7,10 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
   @IsOptional()
   emergencyContact?: string;
 
+    @IsString()
+    @IsOptional()
+    phoneNumber?: string;
+
   @IsString()
   @IsOptional()
   homeCareInfo?: string;
