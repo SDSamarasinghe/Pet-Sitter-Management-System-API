@@ -55,8 +55,6 @@ pipeline {
                         -e CLOUDINARY_CLOUD_NAME=dnutx6czj \\
                         -e CLOUDINARY_API_KEY=362787522778931 \\
                         -e CLOUDINARY_API_SECRET=1Rd5hyyO-p1VrsCrFNXpX6btd78 \\
-                        -e AZURE_STORAGE_CONNECTION_STRING="${AZURE_STORAGE_CONNECTION_STRING}" \\
-                        -e AZURE_STORAGE_CONTAINER_NAME=pet-images \\
                         -e MAIL_USER=lksadish@gmail.com \\
                         -e MAIL_PASS=bflnrivyukjjibyk \\
                         -e MAIL_FROM=lksadish@gmail.com \\
@@ -73,29 +71,13 @@ pipeline {
                 script {
                     sh 'sleep 30'
                     sh '''
-                        echo "Testing root endpoint..."
                         for i in {1..5}; do
-                            if curl -f http://localhost:8000/; then
-                                echo "Root endpoint is working!"
+                            if curl -f http://localhost:8000; then
+                                echo "API is healthy!"
                                 break
                             else
-                                echo "Root endpoint attempt $i failed, retrying..."
-                                echo "Checking if container is running..."
-                                docker ps | grep ${CONTAINER_NAME} || true
-                                echo "Container logs:"
-                                docker logs ${CONTAINER_NAME} --tail=10 || true
+                                echo "Attempt $i failed, retrying..."
                                 sleep 10
-                            fi
-                        done
-                        
-                        echo "Testing health endpoint..."
-                        for i in {1..3}; do
-                            if curl -f http://localhost:8000/api/health; then
-                                echo "Health endpoint is working!"
-                                break
-                            else
-                                echo "Health endpoint attempt $i failed, retrying..."
-                                sleep 5
                             fi
                         done
                     '''
