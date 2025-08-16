@@ -149,6 +149,30 @@ export class UsersController {
   }
 
   /**
+   * PUT /users/profile - Update current user's profile
+   * Protected: Update the authenticated user's own profile
+   */
+  @UseGuards(JwtAuthGuard)
+  @Put('profile')
+  async updateProfile(
+    @Body() updateUserDto: UpdateUserDto,
+    @Request() req
+  ) {
+    const currentUser = req.user;
+    
+    const user = await this.usersService.update(
+      currentUser.userId,
+      updateUserDto,
+      currentUser.userId,
+      currentUser.role
+    );
+    
+    // Remove password from response
+    const { password, ...result } = user.toObject();
+    return result;
+  }
+
+  /**
    * GET /users/admin/pending-addresses - Get all users with pending address changes
    * Admin only - This route must come before /:id route
    */
