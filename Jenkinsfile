@@ -73,13 +73,29 @@ pipeline {
                 script {
                     sh 'sleep 30'
                     sh '''
+                        echo "Testing root endpoint..."
                         for i in {1..5}; do
-                            if curl -f http://localhost:8000; then
-                                echo "API is healthy!"
+                            if curl -f http://localhost:8000/; then
+                                echo "Root endpoint is working!"
                                 break
                             else
-                                echo "Attempt $i failed, retrying..."
+                                echo "Root endpoint attempt $i failed, retrying..."
+                                echo "Checking if container is running..."
+                                docker ps | grep ${CONTAINER_NAME} || true
+                                echo "Container logs:"
+                                docker logs ${CONTAINER_NAME} --tail=10 || true
                                 sleep 10
+                            fi
+                        done
+                        
+                        echo "Testing health endpoint..."
+                        for i in {1..3}; do
+                            if curl -f http://localhost:8000/api/health; then
+                                echo "Health endpoint is working!"
+                                break
+                            else
+                                echo "Health endpoint attempt $i failed, retrying..."
+                                sleep 5
                             fi
                         done
                     '''
