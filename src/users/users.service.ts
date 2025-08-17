@@ -5,6 +5,8 @@ import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { User, UserDocument } from './schemas/user.schema';
 import { Pet, PetDocument } from '../pets/schemas/pet.schema';
+import { PetCare, PetCareDocument } from '../pets/schemas/pet-care.schema';
+import { PetMedical, PetMedicalDocument } from '../pets/schemas/pet-medical.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AzureBlobService } from '../azure-blob/azure-blob.service';
@@ -14,6 +16,8 @@ export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Pet.name) private petModel: Model<PetDocument>,
+    @InjectModel(PetCare.name) private petCareModel: Model<PetCareDocument>,
+    @InjectModel(PetMedical.name) private petMedicalModel: Model<PetMedicalDocument>,
     private mailerService: MailerService,
     private azureBlobService: AzureBlobService,
   ) {}
@@ -47,11 +51,40 @@ export class UsersService {
       .select('-password')
       .exec();
     
-    // Manually populate pets for each client
-    // Note: We use string conversion because pets.userId is stored as string while user._id is ObjectId
+    // Manually populate pets for each client using comprehensive query
+    // This matches the same logic used in pets.service.ts findByUserId method
     for (const client of clients) {
-      const pets = await this.petModel.find({ userId: client._id.toString() }).exec();
-      (client as any).pets = pets;
+      const clientIdString = client._id.toString();
+      const clientObjectId = client._id;
+      
+      const pets = await this.petModel.find({
+        $or: [
+          { userId: clientIdString }, // Match as string (for legacy data)
+          { userId: clientObjectId }, // Match as ObjectId (proper format)
+          { 'userId._id': clientIdString }, // Match when userId is populated as object with string _id
+          { 'userId._id': clientObjectId } // Match when userId is populated as ObjectId
+        ]
+      }).exec();
+      
+      // For each pet, fetch and attach medical and care data
+      const petsWithDetails = await Promise.all(
+        pets.map(async (pet) => {
+          const petIdString = pet._id.toString(); // Convert ObjectId to string for querying
+          
+          const [careData, medicalData] = await Promise.all([
+            this.petCareModel.findOne({ petId: petIdString }).exec(),
+            this.petMedicalModel.findOne({ petId: petIdString }).exec()
+          ]);
+
+          return {
+            ...pet.toObject(),
+            careData: careData || null,
+            medicalData: medicalData || null
+          };
+        })
+      );
+      
+      (client as any).pets = petsWithDetails;
     }
     
     return clients;
