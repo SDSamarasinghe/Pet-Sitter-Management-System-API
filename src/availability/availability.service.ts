@@ -102,6 +102,10 @@ export class AvailabilityService {
         percentage: 0,
         holidays: [],
       },
+      weekendRates: {
+        enabled: false,
+        percentage: 0,
+      },
       unavailableDates: [],
       isActive: true,
     });
