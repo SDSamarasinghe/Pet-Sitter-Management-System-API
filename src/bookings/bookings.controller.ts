@@ -225,6 +225,27 @@ export class BookingsController {
   }
 
   /**
+   * GET /bookings/user/:userId/assigned-sitters - Get assigned sitters for a specific user/client
+   * Users can view their own assigned sitters, admins can view any user's assigned sitters
+   */
+  @UseGuards(JwtAuthGuard)
+  @Get('user/:userId/assigned-sitters')
+  async getAssignedSitters(@Param('userId') userId: string, @Request() req) {
+    const currentUser = req.user;
+    
+    // Validate userId parameter
+    if (!userId || userId.trim() === '') {
+      throw new BadRequestException('User ID is required');
+    }
+    
+    return this.bookingsService.getAssignedSitters(
+      userId,
+      currentUser.userId,
+      currentUser.role
+    );
+  }
+
+  /**
    * GET /bookings/user/:userId - Get user's bookings
    * Users can view their own bookings, admins can view any user's bookings
    */

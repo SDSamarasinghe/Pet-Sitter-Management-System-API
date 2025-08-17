@@ -566,4 +566,77 @@ export class BookingsService {
     return booking;
   }
 
+  /**
+   * Get assigned sitters for a specific user/client
+   */
+  async getAssignedSitters(
+    userId: string,
+    currentUserId: string,
+    currentUserRole: string
+  ): Promise<any[]> {
+    // Verify the requesting user can access this data
+    if (userId !== currentUserId && currentUserRole !== 'admin') {
+      throw new ForbiddenException('Access denied');
+    }
+
+    console.log(`Getting assigned sitters for userId: ${userId}`);
+
+    // First, let's check if there are any bookings for this user
+    const userBookings = await this.bookingModel.find({ 
+      userId: new Types.ObjectId(userId) 
+    }).populate('sitterId', 'firstName lastName email phoneNumber emergencyContact address homeCareInfo profilePicture rating petTypesServiced');
+
+    console.log(`Found ${userBookings.length} total bookings for user ${userId}`);
+    
+    // Filter bookings that have assigned sitters
+    const bookingsWithSitters = userBookings.filter(booking => booking.sitterId);
+    console.log(`Found ${bookingsWithSitters.length} bookings with assigned sitters`);
+
+    if (bookingsWithSitters.length === 0) {
+      return [];
+    }
+
+    // Create a map to group sitters and count their bookings
+    const sitterMap = new Map();
+    
+    bookingsWithSitters.forEach(booking => {
+      if (booking.sitterId) {
+        const sitter = booking.sitterId as any; // Cast to any to access populated properties
+        const sitterId = sitter._id.toString();
+        
+        if (sitterMap.has(sitterId)) {
+          // Increment booking count for existing sitter
+          const existingSitter = sitterMap.get(sitterId);
+          existingSitter.activeBookingsCount += 1;
+          existingSitter.totalAmountSpent += booking.totalAmount || 0;
+          existingSitter.bookingStatuses.push(booking.status);
+        } else {
+          // Add new sitter with booking count
+          sitterMap.set(sitterId, {
+            _id: sitter._id,
+            firstName: sitter.firstName,
+            lastName: sitter.lastName,
+            email: sitter.email,
+            phoneNumber: sitter.phoneNumber,
+            emergencyContact: sitter.emergencyContact,
+            address: sitter.address,
+            homeCareInfo: sitter.homeCareInfo,
+            profilePicture: sitter.profilePicture,
+            rating: sitter.rating,
+            petTypesServiced: sitter.petTypesServiced,
+            activeBookingsCount: 1,
+            totalAmountSpent: booking.totalAmount || 0,
+            bookingStatuses: [booking.status]
+          });
+        }
+      }
+    });
+
+    // Convert map to array
+    const assignedSitters = Array.from(sitterMap.values());
+    console.log(`Returning ${assignedSitters.length} assigned sitters`);
+
+    return assignedSitters;
+  }
+
 }
