@@ -13,18 +13,41 @@ export class AzureBlobService {
     const connectionString = this.configService.get<string>('AZURE_STORAGE_CONNECTION_STRING');
     const containerName = this.configService.get<string>('AZURE_STORAGE_CONTAINER_NAME') || 'pet-images';
     
-    // Extract account name and key from connection string for SAS generation
-    const accountNameMatch = connectionString.match(/AccountName=([^;]+)/);
-    const accountKeyMatch = connectionString.match(/AccountKey=([^;]+)/);
+    // Check if connection string is valid before proceeding
+    if (!connectionString || connectionString.trim() === '' || connectionString === '${AZURE_STORAGE_CONNECTION_STRING}') {
+      console.warn('Azure Storage connection string is not configured properly. Azure Blob functionality will be disabled.');
+      this.blobServiceClient = null;
+      this.containerClient = null;
+      this.accountName = '';
+      this.accountKey = '';
+      return;
+    }
     
-    this.accountName = accountNameMatch ? accountNameMatch[1] : '';
-    this.accountKey = accountKeyMatch ? accountKeyMatch[1] : '';
-    
-    this.blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
-    this.containerClient = this.blobServiceClient.getContainerClient(containerName);
+    try {
+      // Extract account name and key from connection string for SAS generation
+      const accountNameMatch = connectionString.match(/AccountName=([^;]+)/);
+      const accountKeyMatch = connectionString.match(/AccountKey=([^;]+)/);
+      
+      this.accountName = accountNameMatch ? accountNameMatch[1] : '';
+      this.accountKey = accountKeyMatch ? accountKeyMatch[1] : '';
+      
+      this.blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
+      this.containerClient = this.blobServiceClient.getContainerClient(containerName);
+    } catch (error) {
+      console.warn('Failed to initialize Azure Blob Storage:', error.message);
+      this.blobServiceClient = null;
+      this.containerClient = null;
+      this.accountName = '';
+      this.accountKey = '';
+    }
   }
 
   async uploadFile(file: Express.Multer.File, fileName: string): Promise<string> {
+    if (!this.blobServiceClient || !this.containerClient) {
+      console.warn('Azure Blob Storage is not configured. Falling back to local storage or alternative solution.');
+      throw new Error('Azure Blob Storage is not properly configured');
+    }
+    
     try {
       // Try to create container if it doesn't exist (without public access first)
       const containerExists = await this.containerClient.exists();

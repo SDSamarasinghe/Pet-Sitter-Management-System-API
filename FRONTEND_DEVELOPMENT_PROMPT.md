@@ -488,9 +488,9 @@ const uploadFile = async (file: File, type: 'profile' | 'message' | 'review' | '
 
 ### Environment Variables
 ```
-REACT_APP_API_URL=http://localhost:5001
+REACT_APP_API_URL=http://localhost:8000
 REACT_APP_CLOUDINARY_CLOUD_NAME=your_cloud_name
-REACT_APP_WEBSOCKET_URL=ws://localhost:5001
+REACT_APP_WEBSOCKET_URL=ws://localhost:8000
 ```
 
 ### Build Optimizations
