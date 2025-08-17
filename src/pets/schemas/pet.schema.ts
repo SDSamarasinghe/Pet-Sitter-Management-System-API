@@ -33,7 +33,7 @@ export class Pet {
   species: string; // Cat, Dog, etc.
 
   @Prop()
-  weight: number; // Pet weight
+  weight: string; // Pet weight
 
   @Prop()
   microchipNumber: string;

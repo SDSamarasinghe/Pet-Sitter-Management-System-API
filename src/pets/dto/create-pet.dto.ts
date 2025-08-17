@@ -25,9 +25,9 @@ export class CreatePetDto {
   @IsOptional()
   species?: string; // Cat, Dog, etc.
 
-  @IsNumber()
+  @IsString()
   @IsOptional()
-  weight?: number; // Pet weight
+  weight?: string; // Pet weight
 
   @IsString()
   @IsOptional()
