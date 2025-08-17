@@ -579,18 +579,15 @@ export class BookingsService {
       throw new ForbiddenException('Access denied');
     }
 
-    console.log(`Getting assigned sitters for userId: ${userId}`);
 
     // First, let's check if there are any bookings for this user
     const userBookings = await this.bookingModel.find({ 
       userId: new Types.ObjectId(userId) 
     }).populate('sitterId', 'firstName lastName email phoneNumber emergencyContact address homeCareInfo profilePicture rating petTypesServiced');
 
-    console.log(`Found ${userBookings.length} total bookings for user ${userId}`);
     
     // Filter bookings that have assigned sitters
     const bookingsWithSitters = userBookings.filter(booking => booking.sitterId);
-    console.log(`Found ${bookingsWithSitters.length} bookings with assigned sitters`);
 
     if (bookingsWithSitters.length === 0) {
       return [];
@@ -634,7 +631,6 @@ export class BookingsService {
 
     // Convert map to array
     const assignedSitters = Array.from(sitterMap.values());
-    console.log(`Returning ${assignedSitters.length} assigned sitters`);
 
     return assignedSitters;
   }

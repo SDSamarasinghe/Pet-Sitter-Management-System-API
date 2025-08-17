@@ -83,8 +83,6 @@ export class AvailabilityController {
     @Body() updateDto: UpdateAvailabilitySettingsDto,
   ) {
     try {
-      console.log('Received update request for sitterId:', sitterId);
-      console.log('Raw request body:', JSON.stringify(updateDto, null, 2));
       
       const settings = await this.availabilityService.updateSettings(
         sitterId,
