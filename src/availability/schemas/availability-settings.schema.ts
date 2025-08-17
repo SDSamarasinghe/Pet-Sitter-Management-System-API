@@ -31,6 +31,17 @@ export class HolidayRates {
 
 const HolidayRatesSchema = SchemaFactory.createForClass(HolidayRates);
 
+@Schema({ _id: false })
+export class WeekendRates {
+  @Prop({ required: true, default: false })
+  enabled: boolean;
+
+  @Prop({ required: true, default: 0 })
+  percentage: number; // Additional percentage charge for weekends
+}
+
+const WeekendRatesSchema = SchemaFactory.createForClass(WeekendRates);
+
 @Schema({ timestamps: true })
 export class AvailabilitySettings {
   @Prop({ required: true, type: Types.ObjectId, ref: 'User', unique: true })
@@ -69,6 +80,9 @@ export class AvailabilitySettings {
 
   @Prop({ type: HolidayRatesSchema, required: true })
   holidayRates: HolidayRates;
+
+  @Prop({ type: WeekendRatesSchema, required: false })
+  weekendRates?: WeekendRates;
 
   @Prop([String])
   unavailableDates: string[]; // Array of dates when sitter is unavailable
