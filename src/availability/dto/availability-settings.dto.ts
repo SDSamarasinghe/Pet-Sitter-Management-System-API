@@ -25,6 +25,16 @@ export class HolidayRatesDto {
   holidays: string[];
 }
 
+export class WeekendRatesDto {
+  @IsBoolean()
+  enabled: boolean;
+
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  percentage: number;
+}
+
 export class WeeklyScheduleContainerDto {
   @IsOptional()
   @ValidateNested()
@@ -86,6 +96,11 @@ export class CreateAvailabilitySettingsDto {
   @Type(() => HolidayRatesDto)
   holidayRates: HolidayRatesDto;
 
+  @ValidateNested()
+  @Type(() => WeekendRatesDto)
+  @IsOptional()
+  weekendRates?: WeekendRatesDto;
+
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
@@ -124,6 +139,11 @@ export class UpdateAvailabilitySettingsDto {
   @Type(() => HolidayRatesDto)
   @IsOptional()
   holidayRates?: HolidayRatesDto;
+
+  @ValidateNested()
+  @Type(() => WeekendRatesDto)
+  @IsOptional()
+  weekendRates?: WeekendRatesDto;
 
   @IsArray()
   @IsString({ each: true })
