@@ -18,6 +18,7 @@ import { CommentsModule } from './comments/comments.module';
 import { NotesModule } from './notes/notes.module';
 import { AzureBlobModule } from './azure-blob/azure-blob.module';
 import { UploadModule } from './upload/upload.module';
+import { AvailabilityModule } from './availability/availability.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { UploadModule } from './upload/upload.module';
     NotesModule,
     AzureBlobModule,
     UploadModule,
+    AvailabilityModule,
   ],
   controllers: [],
   providers: [],
