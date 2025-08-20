@@ -1,7 +1,7 @@
-# Frontend Development Prompt for Flying Duchess Pet-Sitting Management System
+# Frontend Development Prompt for Whiskarz Pet-Sitting Management System
 
 ## Overview
-I have successfully built a comprehensive backend API for the Flying Duchess Pet-Sitting Management System. The backend now includes extensive functionality for client management, messaging, key security, invoicing, reviews, and informational pages. Below is the complete specification for frontend development to integrate with this enhanced backend.
+I have successfully built a comprehensive backend API for the Whiskarz Pet-Sitting Management System. The backend now includes extensive functionality for client management, messaging, key security, invoicing, reviews, and informational pages. Below is the complete specification for frontend development to integrate with this enhanced backend.
 
 ## Backend Architecture Summary
 - **Framework**: NestJS with TypeScript

@@ -19,6 +19,7 @@ import { NotesModule } from './notes/notes.module';
 import { AzureBlobModule } from './azure-blob/azure-blob.module';
 import { UploadModule } from './upload/upload.module';
 import { AvailabilityModule } from './availability/availability.module';
+import { EmailModule } from './email/email.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -45,7 +46,7 @@ import { HealthController } from './health/health.controller';
           },
         },
         defaults: {
-          from: `"Flying Duchess Pet-Sitting" <${configService.get('MAIL_FROM', 'noreply@flyingduchess.com')}>`,
+          from: `"Whiskarz Pet-Sitting" <${configService.get('MAIL_FROM', 'noreply@flyingduchess.com')}>`,
         },
         template: {
           dir: process.env.NODE_ENV === 'production' 
@@ -76,6 +77,7 @@ import { HealthController } from './health/health.controller';
     AzureBlobModule,
     UploadModule,
     AvailabilityModule,
+    EmailModule,
   ],
   controllers: [HealthController],
   providers: [],

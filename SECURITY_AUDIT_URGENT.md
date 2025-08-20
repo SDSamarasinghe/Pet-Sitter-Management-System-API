@@ -182,7 +182,7 @@ In Jenkins Dashboard:
 
 Create `.env` file (never commit this):
 ```bash
-# Environment Variables for Flying Duchess Pet-Sitting System
+# Environment Variables for Whiskarz Pet-Sitting System
 
 # MongoDB Configuration
 MONGODB_URI=mongodb+srv://newusername:newpassword@cluster0.mongodb.net/flyingduchess?retryWrites=true&w=majority

@@ -26,7 +26,7 @@ export class BookingsController {
 
   /**
    * POST /bookings/service-inquiry - Submit service inquiry (public endpoint)
-   * Public endpoint for the Flying Duchess service inquiry form
+   * Public endpoint for the Whiskarz service inquiry form
    */
   @Post('service-inquiry')
   async submitServiceInquiry(@Body() serviceInquiryDto: ServiceInquiryDto) {
@@ -326,6 +326,7 @@ export class BookingsController {
     @Body() updateBookingDto: UpdateBookingDto,
     @Request() req
   ) {
+    console.log("🚀 ~ BookingsController ~ update ~ updateBookingDto:", updateBookingDto)
     // Validate booking ID parameter
     if (!id || id.trim() === '') {
       throw new BadRequestException('Booking ID is required');

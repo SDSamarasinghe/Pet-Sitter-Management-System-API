@@ -141,7 +141,7 @@ export class InformationService {
         slug: 'contact-info',
         title: 'Contact Information',
         content: `
-          <h2>Flying Duchess Pet-Sitting Services</h2>
+          <h2>Whiskarz Pet-Sitting Services</h2>
           <p><strong>Phone:</strong> (555) 123-4567</p>
           <p><strong>Email:</strong> info@flyingduchess.com</p>
           <p><strong>Address:</strong> 123 Pet Care Lane, Animal City, AC 12345</p>
@@ -198,7 +198,7 @@ export class InformationService {
         title: 'Contact Information',
         type: 'contact_info',
         content: `
-          <h2>Flying Duchess Pet-Sitting Services</h2>
+          <h2>Whiskarz Pet-Sitting Services</h2>
           <p><strong>Phone:</strong> (555) 123-4567</p>
           <p><strong>Email:</strong> info@flyingduchess.com</p>
           <p><strong>Address:</strong> 123 Pet Care Lane, Animal City, AC 12345</p>
