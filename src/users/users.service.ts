@@ -292,7 +292,7 @@ export class UsersService {
     try {
       await this.mailerService.sendMail({
         to: updatedUser.email,
-        subject: 'Account Approved - Welcome to Flying Duchess Pet-Sitting',
+        subject: 'Account Approved - Welcome to Whiskarz Pet-Sitting',
         template: 'sitter-approved',
         context: {
           userName: `${updatedUser.firstName} ${updatedUser.lastName}`,
@@ -335,7 +335,7 @@ export class UsersService {
     try {
       await this.mailerService.sendMail({
         to: updatedUser.email,
-        subject: 'Application Status Update - Flying Duchess Pet-Sitting',
+        subject: 'Application Status Update - Whiskarz Pet-Sitting',
         template: 'user-rejected',
         context: {
           userName: `${updatedUser.firstName} ${updatedUser.lastName}`,
