@@ -77,12 +77,10 @@ export class AzureBlobService {
         },
       });
 
-      console.log(`File uploaded successfully: ${fileName}`);
 
       // Try to generate SAS URL first
       try {
         const sasUrl = await this.generateSasUrl(fileName);
-        console.log('Generated SAS URL successfully');
         return sasUrl;
       } catch (sasError) {
         console.log('Failed to generate SAS URL, returning direct URL:', sasError.message);

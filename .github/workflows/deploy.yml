@@ -2,7 +2,7 @@ name: Deploy API to Azure VM
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [ master, main, backend-changes ]
   workflow_dispatch:
 
 jobs:
@@ -60,14 +60,16 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=8000
-      - MONGODB_URI=mongodb+srv://askobarpabblo:UP7yTX2uJJdlv0e7@petcare.8kqi8ez.mongodb.net/flyingduchess?retryWrites=true&w=majority
-      - JWT_SECRET=FlyingDuchess_PetSitting_JWT_Secret_Key_2025_SecureToken
+      - MONGODB_URI=${{ secrets.MONGODB_URI }}
+      - JWT_SECRET=${{ secrets.JWT_SECRET }}
       - JWT_EXPIRES_IN=24h
       - CLOUDINARY_CLOUD_NAME=dnutx6czj
       - CLOUDINARY_API_KEY=362787522778931
-      - CLOUDINARY_API_SECRET=1Rd5hyyO-p1VrsCrFNXpX6btd78
+      - CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
+      - AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+      - AZURE_STORAGE_CONTAINER_NAME=pet-images
       - MAIL_USER=lksadish@gmail.com
-      - MAIL_PASS=bflnrivyukjjibyk
+      - MAIL_PASS=${{ secrets.MAIL_PASS }}
       - MAIL_FROM=lksadish@gmail.com
       - MAIL_HOST=smtp.gmail.com
       - MAIL_PORT=587

@@ -91,9 +91,9 @@ export class NotesService {
     const [notes, total] = await Promise.all([
       this.noteModel
         .find(noteQuery)
-        .populate('senderId', 'firstName lastName email role')
-        .populate('recipientId', 'firstName lastName email role')
-        .populate('replies.senderId', 'firstName lastName email role')
+        .populate('senderId', 'firstName lastName email role profilePicture')
+        .populate('recipientId', 'firstName lastName email role profilePicture')
+        .populate('replies.senderId', 'firstName lastName email role profilePicture')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -115,9 +115,9 @@ export class NotesService {
   async findNoteById(noteId: string): Promise<NoteDocument> {
     const note = await this.noteModel
       .findById(noteId)
-      .populate('senderId', 'firstName lastName email role')
-      .populate('recipientId', 'firstName lastName email role')
-      .populate('replies.senderId', 'firstName lastName email role')
+      .populate('senderId', 'firstName lastName email role profilePicture')
+      .populate('recipientId', 'firstName lastName email role profilePicture')
+      .populate('replies.senderId', 'firstName lastName email role profilePicture')
       .exec();
 
     if (!note) {
@@ -171,7 +171,7 @@ export class NotesService {
         status: 'active',
         // role: 'client',
       })
-      .select('firstName lastName email role')
+      .select('firstName lastName email role profilePicture')
       .sort({ firstName: 1, lastName: 1 })
       .exec();
   }
@@ -198,9 +198,9 @@ export class NotesService {
     
     const notes = await this.noteModel
       .find(query)
-      .populate('senderId', 'firstName lastName email role')
-      .populate('recipientId', 'firstName lastName email role')
-      .populate('replies.senderId', 'firstName lastName email role')
+      .populate('senderId', 'firstName lastName email role profilePicture')
+      .populate('recipientId', 'firstName lastName email role profilePicture')
+      .populate('replies.senderId', 'firstName lastName email role profilePicture')
       .sort({ updatedAt: -1 })
       .limit(limit)
       .exec();

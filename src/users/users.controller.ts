@@ -3,13 +3,17 @@ import {
   Get, 
   Post, 
   Put, 
+  Delete,
   Body, 
   Param, 
   UseGuards, 
   Request,
   ForbiddenException,
-  BadRequestException 
+  BadRequestException,
+  UseInterceptors,
+  UploadedFile
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -166,6 +170,47 @@ export class UsersController {
       currentUser.userId,
       currentUser.role
     );
+    
+    // Remove password from response
+    const { password, ...result } = user.toObject();
+    return result;
+  }
+
+  /**
+   * POST /users/profile/picture - Upload profile picture
+   * Protected: Update the authenticated user's profile picture
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post('profile/picture')
+  @UseInterceptors(FileInterceptor('profilePicture'))
+  async uploadProfilePicture(
+    @UploadedFile() file: Express.Multer.File,
+    @Request() req
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    const currentUser = req.user;
+    const user = await this.usersService.updateProfilePicture(currentUser.userId, file);
+    
+    // Remove password from response
+    const { password, ...result } = user.toObject();
+    return {
+      ...result,
+      profilePicture: user.profilePicture
+    };
+  }
+
+  /**
+   * DELETE /users/profile/picture - Remove profile picture
+   * Protected: Remove the authenticated user's profile picture
+   */
+  @UseGuards(JwtAuthGuard)
+  @Delete('profile/picture')
+  async removeProfilePicture(@Request() req) {
+    const currentUser = req.user;
+    const user = await this.usersService.removeProfilePicture(currentUser.userId);
     
     // Remove password from response
     const { password, ...result } = user.toObject();

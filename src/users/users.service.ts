@@ -1,19 +1,25 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { MailerService } from '@nestjs-modules/mailer';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { User, UserDocument } from './schemas/user.schema';
 import { Pet, PetDocument } from '../pets/schemas/pet.schema';
+import { PetCare, PetCareDocument } from '../pets/schemas/pet-care.schema';
+import { PetMedical, PetMedicalDocument } from '../pets/schemas/pet-medical.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { AzureBlobService } from '../azure-blob/azure-blob.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Pet.name) private petModel: Model<PetDocument>,
+    @InjectModel(PetCare.name) private petCareModel: Model<PetCareDocument>,
+    @InjectModel(PetMedical.name) private petMedicalModel: Model<PetMedicalDocument>,
     private mailerService: MailerService,
+    private azureBlobService: AzureBlobService,
   ) {}
 
   /**
@@ -45,11 +51,40 @@ export class UsersService {
       .select('-password')
       .exec();
     
-    // Manually populate pets for each client
-    // Note: We use string conversion because pets.userId is stored as string while user._id is ObjectId
+    // Manually populate pets for each client using comprehensive query
+    // This matches the same logic used in pets.service.ts findByUserId method
     for (const client of clients) {
-      const pets = await this.petModel.find({ userId: client._id.toString() }).exec();
-      (client as any).pets = pets;
+      const clientIdString = client._id.toString();
+      const clientObjectId = client._id;
+      
+      const pets = await this.petModel.find({
+        $or: [
+          { userId: clientIdString }, // Match as string (for legacy data)
+          { userId: clientObjectId }, // Match as ObjectId (proper format)
+          { 'userId._id': clientIdString }, // Match when userId is populated as object with string _id
+          { 'userId._id': clientObjectId } // Match when userId is populated as ObjectId
+        ]
+      }).exec();
+      
+      // For each pet, fetch and attach medical and care data
+      const petsWithDetails = await Promise.all(
+        pets.map(async (pet) => {
+          const petIdString = pet._id.toString(); // Convert ObjectId to string for querying
+          
+          const [careData, medicalData] = await Promise.all([
+            this.petCareModel.findOne({ petId: petIdString }).exec(),
+            this.petMedicalModel.findOne({ petId: petIdString }).exec()
+          ]);
+
+          return {
+            ...pet.toObject(),
+            careData: careData || null,
+            medicalData: medicalData || null
+          };
+        })
+      );
+      
+      (client as any).pets = petsWithDetails;
     }
     
     return clients;
@@ -310,6 +345,82 @@ export class UsersService {
     } catch (error) {
       console.error('Failed to send rejection notification email:', error);
       // Don't fail rejection if email fails
+    }
+
+    return updatedUser;
+  }
+
+  /**
+   * Update user's profile picture
+   */
+  async updateProfilePicture(userId: string, file: Express.Multer.File): Promise<UserDocument> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Validate file type
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      throw new BadRequestException('Only image files are allowed (JPEG, PNG, GIF, WebP)');
+    }
+
+    // Validate file size (5MB limit)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      throw new BadRequestException('File size must be less than 5MB');
+    }
+
+    try {
+      // Upload new profile picture
+      const fileName = this.azureBlobService.generateFileName(file.originalname, 'profile');
+      const profilePictureUrl = await this.azureBlobService.uploadFile(file, fileName);
+
+      // If user already has a profile picture, we could delete the old one here
+      // For now, we'll just update with the new URL
+      
+      const updatedUser = await this.userModel.findByIdAndUpdate(
+        userId,
+        { profilePicture: profilePictureUrl },
+        { new: true, runValidators: true }
+      );
+
+      if (!updatedUser) {
+        throw new NotFoundException('User not found');
+      }
+
+      return updatedUser;
+    } catch (error) {
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException(`Upload failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Remove user's profile picture
+   */
+  async removeProfilePicture(userId: string): Promise<UserDocument> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // If user has no profile picture, nothing to remove
+    if (!user.profilePicture) {
+      return user;
+    }
+
+    // Remove profile picture URL from user document
+    const updatedUser = await this.userModel.findByIdAndUpdate(
+      userId,
+      { $unset: { profilePicture: 1 } },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+      throw new NotFoundException('User not found');
     }
 
     return updatedUser;
