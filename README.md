@@ -1,4 +1,4 @@
-# Flying Duchess Pet-Sitting System API
+# Whiskarz Pet-Sitting System API
 
 ## What Can This System Do? (Features for You)
 
@@ -18,7 +18,7 @@
 - **Mobile Friendly:** Works great on your phone, tablet, or computer.
 - **Fast & Reliable:** Built for speed, security, and ease of use.
 
-If you have any questions or need help, just ask the Flying Duchess team!
+If you have any questions or need help, just ask the Whiskarz team!
 
 ---
 
@@ -366,4 +366,4 @@ This project is licensed under the MIT License.
 
 ## Support
 
-For support and questions, please contact the Flying Duchess team.
+For support and questions, please contact the Whiskarz team.
