@@ -1,4 +1,4 @@
-# Flying Duchess Pet-Sitting API Endpoints
+# Whiskarz Pet-Sitting API Endpoints
 
 The comprehensive pet sitter management system is now running with the following endpoints:
 
