@@ -7,13 +7,49 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { CreateBookingAdminDto } from './dto/create-booking-admin.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { ServiceInquiryDto } from './dto/service-inquiry.dto';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class BookingsService {
   constructor(
     @InjectModel(Booking.name) private bookingModel: Model<BookingDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    private emailService: EmailService,
   ) {}
+
+  /**
+   * Send notifications for pending bookings (Step 1)
+   */
+  private async sendPendingBookingNotifications(booking: any): Promise<void> {
+    try {
+      const client = booking.userId;
+      await this.emailService.sendPendingBookingEmails(booking, client);
+      console.log(`Pending booking email notifications sent for booking ${booking._id}`);
+    } catch (error) {
+      console.error('Error sending pending booking notifications:', error);
+    }
+  }
+
+  /**
+   * Send email notification when sitter is assigned to existing booking
+   */
+  private async sendSitterAssignmentNotification(booking: BookingDocument): Promise<void> {
+    try {
+      // Get client and sitter information
+      const client = await this.userModel.findById(booking.userId).exec();
+      const sitter = await this.userModel.findById(booking.sitterId).exec();
+      
+      if (!client || !sitter) return;
+
+      // For now, just log the assignment - we could create a specific template later
+      console.log(`Sitter ${sitter.firstName} ${sitter.lastName} assigned to booking ${booking._id} for client ${client.firstName} ${client.lastName}`);
+
+      console.log(`Sitter assignment notification sent for booking ${booking._id}`);
+    } catch (error) {
+      console.error('Failed to send sitter assignment notification:', error);
+      // Don't throw error - email failure shouldn't break booking assignment
+    }
+  }
 
   /**
    * Submit service inquiry (public endpoint)
@@ -65,6 +101,17 @@ export class BookingsService {
 
     await booking.save();
 
+    // Populate the booking with user details for email notifications
+    const populatedBooking = await this.bookingModel
+      .findById(booking._id)
+      .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
+      .exec();
+
+    // Send email notifications for service inquiry
+    if (populatedBooking) {
+      await this.sendPendingBookingNotifications(populatedBooking);
+    }
+
     return {
       message: 'Service inquiry submitted successfully. We will contact you soon!',
       bookingId: booking._id,
@@ -74,7 +121,7 @@ export class BookingsService {
   }
 
   /**
-   * Create a new booking
+   * Create a new booking (Step 1: Pending status + emails)
    */
   async create(createBookingDto: CreateBookingDto, userId: string): Promise<Booking> {
     // Check for availability conflicts
@@ -97,11 +144,25 @@ export class BookingsService {
         : undefined,
       startDate: new Date(createBookingDto.startDate),
       endDate: new Date(createBookingDto.endDate),
-      status: 'pending',
+      status: 'pending', // Step 1: All new bookings start as Pending
       paymentStatus: 'pending',
     });
     
-    return newBooking.save();
+    const savedBooking = await newBooking.save();
+    
+    // Populate the booking with user and sitter details for email notifications
+    const populatedBooking = await this.bookingModel
+      .findById(savedBooking._id)
+      .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
+      .populate('sitterId', 'firstName lastName email')
+      .exec();
+
+    // Step 1: Send pending booking emails (Client + Admin)
+    if (populatedBooking) {
+      await this.sendPendingBookingNotifications(populatedBooking);
+    }
+    
+    return savedBooking;
   }
 
   /**
@@ -141,7 +202,21 @@ export class BookingsService {
       paymentStatus: 'pending',
     });
     
-    return newBooking.save();
+    const savedBooking = await newBooking.save();
+    
+    // Populate the booking with user and sitter details for email notifications
+    const populatedBooking = await this.bookingModel
+      .findById(savedBooking._id)
+      .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
+      .populate('sitterId', 'firstName lastName email')
+      .exec();
+
+    // Send email notifications
+    if (populatedBooking) {
+      await this.sendPendingBookingNotifications(populatedBooking);
+    }
+    
+    return savedBooking;
   }
 
   /**
@@ -434,7 +509,10 @@ export class BookingsService {
     currentUserId: string,
     currentUserRole: string
   ): Promise<Booking> {
-    const booking = await this.bookingModel.findById(bookingId).exec();
+    const booking = await this.bookingModel.findById(bookingId)
+      .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
+      .populate('sitterId', 'firstName lastName email')
+      .exec();
     
     if (!booking) {
       throw new NotFoundException('Booking not found');
@@ -448,6 +526,9 @@ export class BookingsService {
     if (!canUpdate) {
       throw new ForbiddenException('You can only update your own bookings');
     }
+
+    // Store original status for comparison
+    const originalStatus = booking.status;
 
     // Restrict certain fields to admin only
     const updateData: any = { ...updateBookingDto };
@@ -466,12 +547,51 @@ export class BookingsService {
 
     const updatedBooking = await this.bookingModel
       .findByIdAndUpdate(bookingId, updateData, { new: true })
-      .populate('userId', 'email address firstName lastName')
-      .populate('sitterId', 'email firstName lastName')
+      .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
+      .populate('sitterId', 'firstName lastName email')
       .populate('createdBy', 'email firstName lastName role')
       .exec();
 
+    // Handle email notifications based on status changes
+    if (updatedBooking && currentUserRole === 'admin') {
+      await this.handleStatusChangeNotifications(
+        updatedBooking, 
+        originalStatus, 
+      );
+    }
+
     return updatedBooking;
+  }
+
+  /**
+   * Handle email notifications based on status changes (4-step workflow)
+   */
+  private async handleStatusChangeNotifications(
+    booking: any,
+    originalStatus: string,
+  ): Promise<void> {
+    try {
+      const currentStatus = booking.status;
+      const client = booking.userId;
+      // const sitter = booking.sitterId;
+
+
+      // Step 4: Booking rejected (any status → Rejected)
+      if (currentStatus === 'cancelled' && originalStatus !== 'cancelled') {
+        console.log(`❌ Step 4: Booking ${booking._id} rejected`);
+        await this.emailService.sendBookingRejectedEmails(booking, client);
+        console.log(`✅ Rejection emails sent for booking ${booking._id}`);
+        return;
+      }
+
+      // Log other status changes that don't trigger emails
+      if (originalStatus !== currentStatus) {
+        console.log(`📝 Status changed for booking ${booking._id}: ${originalStatus} → ${currentStatus} (no emails triggered)`);
+      }
+
+    } catch (error) {
+      console.error(`❌ Error handling status change notifications for booking ${booking._id}:`, error);
+    }
   }
 
   /**
@@ -513,13 +633,18 @@ export class BookingsService {
         },
         { new: true }
       )
-      .populate('userId', 'email address firstName lastName')
-      .populate('sitterId', 'email firstName lastName')
-      .populate('createdBy', 'email firstName lastName role')
+      .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
+      .populate('sitterId', 'firstName lastName email')
+      .populate('createdBy', 'firstName lastName role')
       .exec();
 
     if (!booking) {
       throw new NotFoundException('Booking not found');
+    }
+
+    // Send email notification to the assigned sitter
+    if (booking.sitterId) {
+      await this.sendSitterAssignmentNotification(booking);
     }
 
     return booking;
@@ -547,7 +672,7 @@ export class BookingsService {
     return booking;
   }
 
-    /**
+  /**
    * Update payment status (admin only)
    */
   async updatePaymentStatus(bookingId: string, paymentStatus: string): Promise<Booking> {
@@ -555,14 +680,44 @@ export class BookingsService {
     if (!allowedStatuses.includes(paymentStatus)) {
       throw new BadRequestException('Invalid payment status');
     }
+
+    // Get current booking to check original payment status
+    const currentBooking = await this.bookingModel.findById(bookingId)
+      .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
+      .populate('sitterId', 'firstName lastName email')
+      .exec();
+
+    if (!currentBooking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    const originalPaymentStatus = currentBooking.paymentStatus;
+
     const booking = await this.bookingModel.findByIdAndUpdate(
       bookingId,
       { paymentStatus },
       { new: true }
-    ).exec();
+    )
+    .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
+    .populate('sitterId', 'firstName lastName email')
+    .exec();
+
     if (!booking) {
       throw new NotFoundException('Booking not found');
     }
+
+    // Send payment confirmation emails if status changed to 'paid'
+    if (paymentStatus === 'paid' && originalPaymentStatus !== 'paid') {
+      try {
+        const client = booking.userId;
+        const sitter = booking.sitterId;
+        await this.emailService.sendBookingConfirmedPaidEmails(booking, client, sitter);
+        console.log(`Payment confirmation emails sent for booking ${booking._id}`);
+      } catch (error) {
+        console.error(`Error sending payment confirmation emails for booking ${booking._id}:`, error);
+      }
+    }
+
     return booking;
   }
 
