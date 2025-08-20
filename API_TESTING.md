@@ -109,7 +109,7 @@ curl -X POST http://localhost:8000/users
     "role": "admin",
     "address": "789 Admin Blvd, Toronto, ON",
     "emergencyContact": "+1-416-555-0789",
-    "homeCareInfo": "Flying Duchess administrator",
+    "homeCareInfo": "Whiskarz administrator",
     "customerType": "existing"
   }'
 ```DB instance connected
@@ -145,7 +145,7 @@ curl -X POST http://localhost:8000/bookings/service-inquiry \
 }
 ```Duchess Pet-Sitting API - Sample API Calls
 
-This document provides sample API calls to test the Flying Duchess Pet-Sitting System API.
+This document provides sample API calls to test the Whiskarz Pet-Sitting System API.
 
 ## Prerequisites
 
@@ -234,7 +234,7 @@ curl -X POST http://localhost:8000/users \
     "role": "admin",
     "address": "789 Admin Blvd, Toronto, ON",
     "emergencyContact": "+1-416-555-0789",
-    "homeCareInfo": "Flying Duchess administrator",
+    "homeCareInfo": "Whiskarz administrator",
     "customerType": "existing"
   }'
 ```
