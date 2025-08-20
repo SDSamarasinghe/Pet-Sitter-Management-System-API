@@ -1,8 +1,8 @@
 {
   "name": "pet-sitter-management-system-api",
   "version": "0.0.1",
-  "description": "NestJS backend API for Flying Duchess pet-sitting system",
-  "author": "Flying Duchess",
+  "description": "NestJS backend API for Whiskarz pet-sitting system",
+  "author": "Whiskarz",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
