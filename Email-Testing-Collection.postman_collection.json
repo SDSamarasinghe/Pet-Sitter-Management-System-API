@@ -1,0 +1,161 @@
+{
+  "info": {
+    "name": "Pet-Sitter Email Testing",
+    "description": "Collection for testing email notifications in Pet-Sitter Management System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "jwt_token",
+      "value": "YOUR_JWT_TOKEN_HERE"
+    },
+    {
+      "key": "admin_token",
+      "value": "YOUR_ADMIN_JWT_TOKEN_HERE"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/health",
+          "host": ["{{base_url}}"],
+          "path": ["api", "health"]
+        }
+      }
+    },
+    {
+      "name": "Get Clients (for User IDs)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/users/admin/clients",
+          "host": ["{{base_url}}"],
+          "path": ["users", "admin", "clients"]
+        }
+      }
+    },
+    {
+      "name": "Get Sitters (for User IDs)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/users/admin/sitters",
+          "host": ["{{base_url}}"],
+          "path": ["users", "admin", "sitters"]
+        }
+      }
+    },
+    {
+      "name": "📧 Test: Create New Booking (Client Flow)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"REPLACE_WITH_ACTUAL_USER_ID\",\n  \"startDate\": \"2025-08-25\",\n  \"endDate\": \"2025-08-27\",\n  \"serviceType\": \"Pet Sitting\",\n  \"numberOfPets\": 2,\n  \"petTypes\": [\"Dog\", \"Cat\"],\n  \"serviceAddress\": \"123 Pet Street, Animal City, AC 12345\",\n  \"totalAmount\": 150,\n  \"notes\": \"My pets are very friendly and love attention! This is a test booking.\",\n  \"specialInstructions\": \"Please feed the cat at 6 AM and 6 PM. Dog needs a walk twice daily.\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      }
+    },
+    {
+      "name": "📧 Test: Admin Create Booking with Sitter",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"REPLACE_WITH_CLIENT_ID\",\n  \"sitterId\": \"REPLACE_WITH_SITTER_ID\",\n  \"startDate\": \"2025-08-30\",\n  \"endDate\": \"2025-09-02\",\n  \"serviceType\": \"Pet Sitting\",\n  \"numberOfPets\": 1,\n  \"petTypes\": [\"Dog\"],\n  \"serviceAddress\": \"456 Dog Lane, Pet City, PC 67890\",\n  \"totalAmount\": 200,\n  \"status\": \"assigned\",\n  \"notes\": \"Admin created booking for regular client - EMAIL TEST\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/admin",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "admin"]
+        }
+      }
+    },
+    {
+      "name": "📧 Test: Assign Sitter to Existing Booking",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sitterId\": \"REPLACE_WITH_SITTER_ID\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/REPLACE_WITH_BOOKING_ID/assign-sitter",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "REPLACE_WITH_BOOKING_ID", "assign-sitter"]
+        }
+      }
+    },
+    {
+      "name": "Get All Bookings",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      }
+    }
+  ]
+}

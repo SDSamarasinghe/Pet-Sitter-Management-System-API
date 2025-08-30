@@ -660,4 +660,74 @@ export class EmailService {
       `,
     });
   }
+
+  /**
+   * 🔐 Send password reset email
+   */
+  async sendPasswordResetEmail(email: string, token: string): Promise<void> {
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
+    
+    await this.mailerService.sendMail({
+      to: email,
+      subject: '🔐 Reset Your Password - Whiskarz Pet-Sitting',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            .container { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; }
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+            .content { background: white; padding: 30px; }
+            .footer { background: #f1f1f1; padding: 20px; text-align: center; color: #666; }
+            .button { display: inline-block; background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .warning { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🔐 Password Reset Request</h1>
+              <p>Whiskarz Pet-Sitting Service</p>
+            </div>
+            <div class="content">
+              <h2>Hello!</h2>
+              
+              <p>We received a request to reset your password for your Whiskarz Pet-Sitting account.</p>
+              
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${resetUrl}" class="button">Reset Your Password</a>
+              </div>
+              
+              <div class="warning">
+                <p><strong>⚠️ Important Security Information:</strong></p>
+                <ul>
+                  <li>This password reset link will expire in <strong>1 hour</strong></li>
+                  <li>If you didn't request this reset, please ignore this email</li>
+                  <li>For security, never share this link with anyone</li>
+                  <li>If you're having trouble, contact our support team</li>
+                </ul>
+              </div>
+              
+              <p>If the button above doesn't work, copy and paste this link into your browser:</p>
+              <p style="word-break: break-all; background: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace;">
+                ${resetUrl}
+              </p>
+              
+              <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+                <p><strong>Need Help?</strong></p>
+                <p>If you're having trouble resetting your password or didn't request this change, please contact our support team:</p>
+                <p>📧 Email: <a href="mailto:${process.env.ADMIN_EMAIL || 'admin@flyingduchess.com'}">${process.env.ADMIN_EMAIL || 'admin@flyingduchess.com'}</a></p>
+              </div>
+            </div>
+            <div class="footer">
+              <p><strong>Whiskarz Pet-Sitting Team</strong></p>
+              <p>Keeping your account secure 🐾🔐</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    });
+  }
 }

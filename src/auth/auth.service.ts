@@ -1,14 +1,18 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
+import { EmailService } from '../email/email.service';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
+    private emailService: EmailService,
   ) {}
 
   /**
@@ -64,6 +68,38 @@ export class AuthService {
         homeCareInfo: user.homeCareInfo,
         pendingAddress: user.pendingAddress,
       },
+    };
+  }
+
+  /**
+   * Send forgot password email
+   */
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+    try {
+      const token = await this.usersService.generatePasswordResetToken(forgotPasswordDto.email);
+      
+      // Send password reset email
+      await this.emailService.sendPasswordResetEmail(forgotPasswordDto.email, token);
+      
+      return {
+        message: 'Password reset email sent. Please check your email for instructions.',
+      };
+    } catch (error) {
+      // Don't reveal if email exists or not for security
+      return {
+        message: 'If an account with that email exists, a password reset email has been sent.',
+      };
+    }
+  }
+
+  /**
+   * Reset password using token
+   */
+  async resetPassword(resetPasswordDto: ResetPasswordDto) {
+    await this.usersService.resetPassword(resetPasswordDto.token, resetPasswordDto.newPassword);
+    
+    return {
+      message: 'Password has been reset successfully. You can now login with your new password.',
     };
   }
 }

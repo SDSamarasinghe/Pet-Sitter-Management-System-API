@@ -132,6 +132,13 @@ export class User {
   @Prop()
   availability: string; // General availability
 
+  // Password reset fields
+  @Prop()
+  passwordResetToken: string; // Token for password reset
+
+  @Prop()
+  passwordResetExpires: Date; // Expiration time for password reset token
+
   @Prop({ default: Date.now })
   createdAt: Date;
 
