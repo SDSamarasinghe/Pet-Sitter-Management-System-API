@@ -425,4 +425,56 @@ export class UsersService {
 
     return updatedUser;
   }
+
+  /**
+   * Generate password reset token for user
+   */
+  async generatePasswordResetToken(email: string): Promise<string> {
+    const user = await this.userModel.findOne({ email });
+    
+    if (!user) {
+      throw new NotFoundException('User with this email not found');
+    }
+
+    // Generate a secure random token
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    
+    // Set token and expiration (1 hour from now)
+    const expires = new Date();
+    expires.setHours(expires.getHours() + 1);
+
+    await this.userModel.findByIdAndUpdate(user._id, {
+      passwordResetToken: token,
+      passwordResetExpires: expires,
+    });
+
+    return token;
+  }
+
+  /**
+   * Reset password using token
+   */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const user = await this.userModel.findOne({
+      passwordResetToken: token,
+      passwordResetExpires: { $gt: new Date() }, // Token not expired
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired password reset token');
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password and clear reset token
+    await this.userModel.findByIdAndUpdate(user._id, {
+      password: hashedPassword,
+      $unset: {
+        passwordResetToken: 1,
+        passwordResetExpires: 1,
+      },
+    });
+  }
 }
