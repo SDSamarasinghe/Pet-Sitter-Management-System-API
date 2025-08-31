@@ -140,7 +140,7 @@ export class EmailService {
 
               <div style="text-align: center; margin: 30px 0;">
                 <p><strong>Questions or need to make changes?</strong></p>
-                <p>Contact us at: <a href="mailto:${process.env.ADMIN_EMAIL || 'admin@flyingduchess.com'}">${process.env.ADMIN_EMAIL || 'admin@flyingduchess.com'}</a></p>
+                <p>Contact us at: <a href="mailto:${process.env.ADMIN_EMAIL || 'admin@whiskarz.com'}">${process.env.ADMIN_EMAIL || 'admin@whiskarz.com'}</a></p>
               </div>
             </div>
             <div class="footer">

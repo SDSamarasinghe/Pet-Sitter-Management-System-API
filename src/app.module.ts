@@ -39,7 +39,7 @@ import { HealthController } from './health/health.controller';
         transport: {
           host: configService.get('MAIL_HOST', 'smtp.gmail.com'),
           port: configService.get('MAIL_PORT', 587),
-          secure: false,
+          secure: Number(configService.get('MAIL_PORT', 587)) === 465, // true for 465, false otherwise
           auth: {
             user: configService.get('MAIL_USER'),
             pass: configService.get('MAIL_PASS'),
