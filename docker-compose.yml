@@ -23,5 +23,5 @@ services:
       MAIL_HOST: smtp.gmail.com
       MAIL_PORT: 587
       ADMIN_EMAIL: ${MAIL_FROM}
-      FRONTEND_URL: http://www.whiskarz.com/
+      FRONTEND_URL: https://www.whiskarz.com/
     restart: unless-stopped
