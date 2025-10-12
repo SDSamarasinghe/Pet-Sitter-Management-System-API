@@ -295,8 +295,10 @@ export class UsersService {
         subject: 'Account Approved - Welcome to Whiskarz Pet-Sitting',
         template: 'sitter-approved',
         context: {
-          userName: `${updatedUser.firstName} ${updatedUser.lastName}`,
-          userEmail: updatedUser.email,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          email: updatedUser.email,
+          role: updatedUser.role,
           password: password, // Send the plain password in email
           loginUrl: process.env.FRONTEND_URL || 'https://flyingduchess.com/login',
         },
@@ -338,7 +340,11 @@ export class UsersService {
         subject: 'Application Status Update - Whiskarz Pet-Sitting',
         template: 'user-rejected',
         context: {
-          userName: `${updatedUser.firstName} ${updatedUser.lastName}`,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          reason: 'Your application did not meet our requirements at this time.',
           supportEmail: process.env.SUPPORT_EMAIL || 'support@flyingduchess.com',
         },
       });
