@@ -38,8 +38,8 @@ import { HealthController } from './health/health.controller';
   useFactory: async (configService: ConfigService) => {
     const mailPort = configService.get('MAIL_PORT', 587);
     const mailUser = configService.get('MAIL_USER');
-    console.log('MAIL_PORT:', mailPort);
-    console.log('MAIL_USER:', mailUser);
+    console.log('🚀MAIL_PORT:', mailPort);
+    console.log('🚀MAIL_USER:', mailUser);
 
     return {
       transport: {
