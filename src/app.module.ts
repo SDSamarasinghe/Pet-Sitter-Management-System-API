@@ -33,33 +33,40 @@ import { HealthController } from './health/health.controller';
     MongooseModule.forRoot(process.env.MONGODB_URI),
     
     // Mailer configuration
-    MailerModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        transport: {
-          host: configService.get('MAIL_HOST', 'smtp.gmail.com'),
-          port: configService.get('MAIL_PORT', 587),
-          secure: Number(configService.get('MAIL_PORT', 587)) === 465, // true for 465, false otherwise
-          auth: {
-            user: configService.get('MAIL_USER'),
-            pass: configService.get('MAIL_PASS'),
-          },
+ MailerModule.forRootAsync({
+  imports: [ConfigModule],
+  useFactory: async (configService: ConfigService) => {
+    const mailPort = configService.get('MAIL_PORT', 587);
+    const mailUser = configService.get('MAIL_USER');
+    console.log('MAIL_PORT:', mailPort);
+    console.log('MAIL_USER:', mailUser);
+
+    return {
+      transport: {
+        host: configService.get('MAIL_HOST', 'smtp.gmail.com'),
+        port: mailPort,
+        secure: Number(mailPort) === 465, // true for 465, false otherwise
+        auth: {
+          user: mailUser,
+          pass: configService.get('MAIL_PASS'),
         },
-        defaults: {
-          from: `"Whiskarz Pet-Sitting" <${configService.get('MAIL_FROM', 'noreply@flyingduchess.com')}>`,
+      },
+      defaults: {
+        from: `"Whiskarz Pet-Sitting" <${configService.get('MAIL_FROM', 'noreply@flyingduchess.com')}>`,
+      },
+      template: {
+        dir: process.env.NODE_ENV === 'production' 
+          ? join(__dirname, 'users', 'templates')
+          : join(process.cwd(), 'src', 'users', 'templates'),
+        adapter: new HandlebarsAdapter(),
+        options: {
+          strict: true,
         },
-        template: {
-          dir: process.env.NODE_ENV === 'production' 
-            ? join(__dirname, 'users', 'templates')
-            : join(process.cwd(), 'src', 'users', 'templates'),
-          adapter: new HandlebarsAdapter(),
-          options: {
-            strict: true,
-          },
-        },
-      }),
-      inject: [ConfigService],
-    }),
+      },
+    };
+  },
+  inject: [ConfigService],
+}),
     
     // Feature modules
     AuthModule,
