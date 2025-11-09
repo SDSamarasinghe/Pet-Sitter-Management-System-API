@@ -2,49 +2,350 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Account Approved - Whiskarz Pet-Sitting</title>
+    <title>Service Inquiry Confirmation - Whiskarz Pet-Sitting</title>
     <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
-        .content { padding: 20px; }
-        .footer { background-color: #f4f4f4; padding: 10px; text-align: center; font-size: 12px; }
+        body { 
+            font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif;
+            line-height: 1.6; 
+            color: #2C3E50; 
+            margin: 0;
+            padding: 0;
+            background-color: #F5F7FA;
+        }
+        .email-wrapper {
+            padding: 40px 20px;
+        }
+        .container { 
+            max-width: 650px; 
+            margin: 0 auto; 
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(26, 42, 108, 0.1);
+        }
+        .header { 
+            background: linear-gradient(135deg, #1A2A6C 0%, #0F3460 100%);
+            color: white; 
+            padding: 40px 30px; 
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+            font-weight: 700;
+            color: white;
+        }
+        .header h2 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 400;
+            opacity: 0.95;
+            color: white;
+        }
+        .logo-badge {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        .content { 
+            padding: 40px 30px; 
+            background-color: #ffffff;
+        }
+        .highlight-box {
+            background-color: #F5F7FA;
+            border-left: 4px solid #00AEEF;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 25px 0;
+        }
+        .highlight-box h3 {
+            margin-top: 0;
+            color: #1A2A6C;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .highlight-box p {
+            margin: 10px 0;
+            color: #2C3E50;
+        }
+        .highlight-box ul {
+            color: #2C3E50;
+        }
+        .credentials-box {
+            background-color: #F5F7FA;
+            border: 2px solid #00AEEF;
+            border-radius: 10px;
+            padding: 25px;
+            margin: 25px 0;
+        }
+        .credentials-box h3 {
+            margin-top: 0;
+            color: #1A2A6C;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .credentials-box ul {
+            list-style: none;
+            padding: 0;
+            margin: 15px 0 0 0;
+        }
+        .credentials-box li {
+            margin: 10px 0;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            border-left: 3px solid #00AEEF;
+            color: #2C3E50;
+        }
+        .credentials-box li strong {
+            color: #1A2A6C;
+            font-weight: 600;
+            min-width: 100px;
+            display: inline-block;
+        }
+        .payment-box {
+            background: linear-gradient(135deg, #1A2A6C 0%, #0F3460 100%);
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px 0;
+            text-align: center;
+            color: white;
+        }
+        .payment-box h3 {
+            margin-top: 0;
+            color: white;
+            font-size: 22px;
+            font-weight: 800;
+        }
+        .payment-box p {
+            color: white;
+        }
+        .payment-email {
+            background: white;
+            border: 3px solid #00AEEF;
+            padding: 18px;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-size: 24px;
+            font-weight: 800;
+            color: #1A2A6C;
+        }
+        .payment-icon {
+            font-size: 42px;
+            margin-bottom: 10px;
+        }
+        .info-box {
+            background-color: #F5F7FA;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #1A2A6C;
+        }
+        .info-box p {
+            margin: 8px 0;
+            color: #2C3E50;
+        }
+        .info-box strong {
+            color: #1A2A6C;
+        }
         .login-button { 
             display: inline-block; 
-            background-color: #4CAF50; 
-            color: white; 
-            padding: 10px 20px; 
+            background: linear-gradient(135deg, #00AEEF 0%, #1A2A6C 100%);
+            color: white !important; 
+            padding: 16px 40px; 
             text-decoration: none; 
-            border-radius: 5px; 
-            margin: 10px 0; 
+            border-radius: 8px; 
+            margin: 20px 0;
+            font-weight: 700;
+            font-size: 16px;
+        }
+        .button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .success-badge {
+            display: inline-block;
+            background-color: #00AEEF;
+            color: white;
+            padding: 10px 25px;
+            border-radius: 25px;
+            font-weight: 700;
+            margin: 15px 0;
+            font-size: 15px;
+        }
+        .footer { 
+            background-color: #2C3E50;
+            padding: 30px; 
+            text-align: center; 
+            font-size: 14px;
+            color: #F5F7FA;
+        }
+        .footer p {
+            margin: 8px 0;
+            color: #F5F7FA;
+        }
+        .footer a {
+            color: #00AEEF;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .divider {
+            border: none;
+            height: 1px;
+            background-color: #F5F7FA;
+            margin: 30px 0;
+        }
+        .highlight-text {
+            background-color: #00AEEF;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+        ol {
+            padding-left: 20px;
+            color: #2C3E50;
+        }
+        ol li {
+            margin: 10px 0;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Welcome to Whiskarz Pet-Sitting!</h1>
-            <h2>Your Account Has Been Approved</h2>
-        </div>
-        <div class="content">
-            <p>Hello {{firstName}} {{lastName}},</p>
-            <p>Congratulations! Your sitter account has been approved and activated.</p>
-            <p><strong>Your Account Details:</strong></p>
-            <ul>
-                <li><strong>Email:</strong> {{email}}</li>
-                <li><strong>Password:</strong> {{password}}</li>
-                <li><strong>Role:</strong> {{role}}</li>
-                <li><strong>Status:</strong> Active</li>
-            </ul>
-            <p>You can now log in to your account and start providing pet-sitting services.</p>
-            <p style="text-align: center;">
-                <a href="{{loginUrl}}" class="login-button">Login to Your Account</a>
-            </p>
-            <p>Thank you for joining Whiskarz Pet-Sitting!</p>
-            <p>Best regards,<br>The Whiskarz Team</p>
-        </div>
-        <div class="footer">
-            <p>&copy; 2025 Whiskarz Pet-Sitting. All rights reserved.</p>
+    <div class="email-wrapper">
+        <div class="container">
+            <div class="header">
+                <div class="logo-badge">🐾</div>
+                <h1>Welcome to Whiskarz Pet-Sitting!</h1>
+                <h2>Pet Care Service - {{serviceDate}}</h2>
+            </div>
+            
+            <div class="content">
+                <p style="font-size: 16px; color: #2C3E50;">Hello <strong style="color: #1A2A6C;">{{firstName}}</strong>,</p>
+                
+                <p style="color: #2C3E50;">This is regarding the inquiry we received for pet visits (<strong>{{serviceDate}}</strong>).</p>
+
+                <div class="success-badge">
+                    ✅ We currently have availability for the requested dates
+                </div>
+
+                <hr class="divider">
+
+                <!-- Payment Information -->
+                <div class="payment-box">
+                    <div class="payment-icon">💳</div>
+                    <h3>IMPORTANT: Payment Information</h3>
+                    <p style="font-size: 15px; margin: 15px 0;">
+                        For Interac e-Transfer payments, please use:
+                    </p>
+                    <div class="payment-email">
+                        pets@whiskarz.com
+                    </div>
+                    <p style="font-size: 14px; margin-top: 15px;">
+                        💡 Save this email - You'll need it for all payment transactions
+                    </p>
+                </div>
+
+                <!-- Next Steps -->
+                <div class="highlight-box">
+                    <h3>📋 Next Steps - Complete Your Booking</h3>
+                    <p>To proceed, please log in to our website using the button below:</p>
+                    
+                    <div class="button-container">
+                        <a href="{{loginUrl}}" class="login-button">🔐 Login to Your Account</a>
+                    </div>
+                </div>
+
+                <!-- Login Credentials -->
+                <div class="credentials-box">
+                    <h3>🔑 Your Login Credentials</h3>
+                    <ul>
+                        <li>
+                            <strong>Username:</strong> 
+                            <span class="highlight-text">{{email}}</span> 
+                            <span style="color: #7F8C8D; font-size: 13px;">(Case-sensitive)</span>
+                        </li>
+                        <li>
+                            <strong>Password:</strong> 
+                            <span class="highlight-text">{{password}}</span> 
+                            <span style="color: #7F8C8D; font-size: 13px;">(Case-sensitive)</span>
+                        </li>
+                    </ul>
+                    <p style="margin-top: 15px; color: #7F8C8D; font-size: 14px; text-align: center;">
+                        💻 <strong>We recommend using a laptop or computer for the best experience.</strong>
+                    </p>
+                </div>
+
+                <!-- Profile Setup -->
+                <div class="highlight-box">
+                    <h3>👤 Complete Your Profile & Pet Information</h3>
+                    <p>After logging in, please click on <strong>"My Pets"</strong> and <strong>"My Profile"</strong> tabs to provide information about yourself and your pets.</p>
+                    
+                    <p style="margin-top: 15px; font-weight: 600;">These are general intake forms for all pets, and we only require you to complete them once.</p>
+                    
+                    <p style="margin-top: 15px; font-weight: 600;">What to Include:</p>
+                    <ul style="padding-left: 20px; margin: 10px 0;">
+                        <li>Your contact information and address</li>
+                        <li>Emergency contact details</li>
+                        <li>Pet names, species, breed, and age</li>
+                        <li>Vaccination records and medical information</li>
+                        <li>Dietary restrictions and feeding schedules</li>
+                        <li>Behavior notes and care instructions</li>
+                        <li>Veterinarian contact information</li>
+                    </ul>
+                </div>
+
+                <!-- Important Tips -->
+                <div class="info-box">
+                    <p><strong>💡 Important Tips:</strong></p>
+                    <p>• Fill out the forms to the best of your ability</p>
+                    <p>• If you need to leave the site, please log out and log back in when you return</p>
+                    <p>• Your information is kept secure and confidential</p>
+                </div>
+
+                <!-- Password Management -->
+                <div class="highlight-box">
+                    <h3>🔒 Password Management</h3>
+                    <p>To maintain your assigned password, keep the "password" section in "My Profile" <strong>blank</strong>.</p>
+                    
+                    <p style="margin-top: 10px;">If you prefer to change it, fill in the space provided and make a note of it for future bookings and communications.</p>
+                </div>
+
+                <!-- Admin Review -->
+                <div class="info-box">
+                    <p><strong>✨ What Happens Next:</strong></p>
+                    <p>Once your forms are completed, our Admin will review and grant permission for you to complete your booking and set up a consultation with your pet-sitter.</p>
+                </div>
+
+                <!-- Booking Notice -->
+                <div class="info-box">
+                    <p><strong>⚠️ Please Note:</strong></p>
+                    <p>Wait for our email before selecting any "add-ons" in the "book add-ons only" section, including consultations and lockboxes.</p>
+                </div>
+
+                <!-- Urgency Notice -->
+                <div class="info-box">
+                    <p><strong>⏰ Important:</strong></p>
+                    <p>Our schedule fills up quickly. If we don't hear back from you, we will assume you have made other arrangements.</p>
+                </div>
+
+                <hr class="divider">
+
+                <p style="color: #2C3E50;">Thank you for considering Whiskarz Pet-Sitting for your pets!</p>
+                
+                <p style="color: #2C3E50;">If you have any questions or need assistance, please contact us at <strong style="color: #1A2A6C;">admin@whiskarz.com</strong></p>
+                
+                <p style="margin-top: 30px; color: #2C3E50;">
+                    <strong>Warm Regards,</strong><br>
+                    <span style="color: #1A2A6C; font-weight: 700;">The Whiskarz Team</span> 🐾
+                </p>
+            </div>
+            
+            <div class="footer">
+                <p style="font-size: 16px; font-weight: 700; color: #00AEEF; margin-bottom: 15px;">🐾 Whiskarz Pet-Sitting 🐾</p>
+                <p><strong>💳 Payment Email (Interac e-Transfer):</strong> <a href="mailto:pets@whiskarz.com">pets@whiskarz.com</a></p>
+                <p><strong>📧 Admin & Support:</strong> <a href="mailto:admin@whiskarz.com">admin@whiskarz.com</a></p>
+                <p style="margin-top: 20px; opacity: 0.8;">&copy; 2025 Whiskarz Pet-Sitting. All rights reserved.</p>
+            </div>
         </div>
     </div>
 </body>
