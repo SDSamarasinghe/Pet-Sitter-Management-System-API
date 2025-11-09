@@ -202,12 +202,17 @@ export class EmailService {
                   <p><strong>Service Type:</strong> ${booking.serviceType}</p>
                   <p><strong>Number of Pets:</strong> ${booking.numberOfPets}</p>
                   <p><strong>Pet Types:</strong> ${booking.petTypes?.join(', ')}</p>
-                  <p><strong>Total Amount:</strong> <strong style="color: #1A2A6C;">$${booking.totalAmount}</strong></p>
                   <p><strong>Booking Reference:</strong> ${booking._id}</p>
                   
                   ${booking.notes ? `<p><strong>Your Notes:</strong> ${booking.notes}</p>` : ''}
                   ${booking.specialInstructions ? `<p><strong>Special Instructions:</strong> ${booking.specialInstructions}</p>` : ''}
                   ${booking.clientNotes ? `<p><strong>Additional Notes:</strong> ${booking.clientNotes}</p>` : ''}
+                </div>
+
+                <div class="info-box" style="background-color: #FFF3CD; border-left: 4px solid #FFC107;">
+                  <h4 style="color: #856404;">💰 Pricing Information</h4>
+                  <p style="color: #856404;"><strong>Final pricing will be calculated and confirmed based on your specific requirements.</strong></p>
+                  <p style="color: #856404;">Our team will review your inquiry and provide you with an accurate quote shortly.</p>
                 </div>
 
                 <div class="info-box">
