@@ -62,12 +62,12 @@ export class PetsController {
    */
   @Get('user/:userId')
   async findByUserId(@Param('userId') userId: string, @Request() req) {
-    const currentUser = req.user;
+    // const currentUser = req.user;
     
     // Users can only view their own pets unless they are admin
-    if (userId !== currentUser.userId && currentUser.role !== 'admin') {
-      userId = currentUser.userId; // Override to current user's ID
-    }
+    // if (userId !== currentUser.userId && currentUser.role !== 'admin') {
+    //   userId = currentUser.userId; // Override to current user's ID
+    // }
     
     return this.petsService.findByUserId(userId);
   }
