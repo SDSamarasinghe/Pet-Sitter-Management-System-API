@@ -70,6 +70,22 @@ export class EmailService {
     }
   }
 
+  /**
+   * 📧 Send sitter assignment notification
+   */
+  async sendSitterAssignmentEmail(booking: any, client: any, sitter: any): Promise<void> {
+    try {
+      console.log(`📧 Sending sitter assignment email for booking ${booking._id}`);
+      
+      await this.sendSitterAssignedNotificationEmail(booking, client, sitter);
+      
+      console.log(`✅ Sitter assignment email sent successfully for booking ${booking._id}`);
+    } catch (error) {
+      console.error(`❌ Failed to send sitter assignment email for booking ${booking._id}:`, error);
+      throw error;
+    }
+  }
+
   // ===========================
   // CLIENT EMAIL TEMPLATES
   // ===========================
@@ -741,6 +757,240 @@ export class EmailService {
             <div class="footer">
               <p><strong>Whiskarz Pet-Sitting Team</strong></p>
               <p>Thank you for providing excellent pet care! 🐾❤️</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    });
+  }
+
+  /**
+   * Sitter: Booking assignment notification (WITHOUT PRICING)
+   */
+  private async sendSitterAssignedNotificationEmail(booking: any, client: any, sitter: any): Promise<void> {
+    const startDate = new Date(booking.startDate).toLocaleDateString();
+    const endDate = new Date(booking.endDate).toLocaleDateString();
+    const startTime = new Date(booking.startDate).toLocaleTimeString();
+    const endTime = new Date(booking.endDate).toLocaleTimeString();
+
+    await this.mailerService.sendMail({
+      to: sitter.email,
+      subject: '🎉 New Booking Assignment - Whiskarz Pet-Sitting',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>New Booking Assignment</title>
+          <style>
+            body { 
+              font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif;
+              line-height: 1.6; 
+              color: #2C3E50; 
+              margin: 0;
+              padding: 0;
+              background-color: #F5F7FA;
+            }
+            .email-wrapper {
+              padding: 40px 20px;
+            }
+            .container { 
+              max-width: 650px; 
+              margin: 0 auto; 
+              background-color: #ffffff;
+              border-radius: 12px;
+              overflow: hidden;
+              box-shadow: 0 4px 15px rgba(26, 42, 108, 0.1);
+            }
+            .header { 
+              background: linear-gradient(135deg, #1A2A6C 0%, #0F3460 100%);
+              color: white; 
+              padding: 40px 30px; 
+              text-align: center;
+            }
+            .header h1 {
+              margin: 0 0 10px 0;
+              font-size: 28px;
+              font-weight: 700;
+            }
+            .header h2 {
+              margin: 0;
+              font-size: 18px;
+              font-weight: 400;
+              opacity: 0.95;
+            }
+            .content { 
+              padding: 40px 30px; 
+              background-color: #ffffff;
+            }
+            .success-badge {
+              display: inline-block;
+              background: linear-gradient(135deg, #00AEEF 0%, #1A2A6C 100%);
+              color: white;
+              padding: 12px 30px;
+              border-radius: 25px;
+              font-weight: 700;
+              margin: 20px 0;
+              font-size: 15px;
+            }
+            .booking-details {
+              background-color: #F5F7FA;
+              border-left: 4px solid #00AEEF;
+              border-radius: 8px;
+              padding: 25px;
+              margin: 25px 0;
+            }
+            .booking-details h3 {
+              margin-top: 0;
+              color: #1A2A6C;
+              font-size: 20px;
+            }
+            .booking-details p {
+              margin: 12px 0;
+              color: #2C3E50;
+            }
+            .booking-details strong {
+              color: #1A2A6C;
+              font-weight: 600;
+              min-width: 140px;
+              display: inline-block;
+            }
+            .client-info {
+              background: linear-gradient(135deg, #1A2A6C 0%, #0F3460 100%);
+              border-radius: 12px;
+              padding: 25px;
+              margin: 25px 0;
+              color: white;
+            }
+            .client-info h3 {
+              margin-top: 0;
+              color: white;
+              font-size: 20px;
+            }
+            .client-info p {
+              margin: 12px 0;
+              color: white;
+            }
+            .client-info strong {
+              color: #00AEEF;
+              font-weight: 600;
+            }
+            .info-box {
+              background-color: #E8F5FD;
+              border: 2px solid #00AEEF;
+              padding: 20px;
+              margin: 20px 0;
+              border-radius: 8px;
+            }
+            .info-box h4 {
+              margin-top: 0;
+              color: #1A2A6C;
+            }
+            .info-box ul {
+              margin: 10px 0;
+              padding-left: 20px;
+            }
+            .info-box li {
+              margin: 8px 0;
+              color: #2C3E50;
+            }
+            .footer { 
+              background-color: #2C3E50;
+              padding: 30px; 
+              text-align: center; 
+              font-size: 14px;
+              color: #F5F7FA;
+            }
+            .footer p {
+              margin: 8px 0;
+            }
+            .footer a {
+              color: #00AEEF;
+              text-decoration: none;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="email-wrapper">
+            <div class="container">
+              <div class="header">
+                <h1>🎉 New Booking Assignment!</h1>
+                <h2>You've been assigned to a new pet-sitting service</h2>
+              </div>
+              
+              <div class="content">
+                <p style="font-size: 16px;">Hello <strong style="color: #1A2A6C;">${sitter.firstName}</strong>,</p>
+                
+                <p>Great news! You have been assigned to provide pet-sitting services for a client. Below are the booking details:</p>
+
+                <div class="success-badge">
+                  ✅ Booking Assigned
+                </div>
+
+                <div class="booking-details">
+                  <h3>📅 Booking Information</h3>
+                  <p><strong>Booking ID:</strong> ${booking._id}</p>
+                  <p><strong>Service Type:</strong> ${booking.serviceType || 'Pet-Sitting Service'}</p>
+                  <p><strong>Start Date:</strong> ${startDate} at ${startTime}</p>
+                  <p><strong>End Date:</strong> ${endDate} at ${endTime}</p>
+                  <p><strong>Number of Pets:</strong> ${booking.numberOfPets || 'Not specified'}</p>
+                  ${booking.petTypes && booking.petTypes.length > 0 ? `<p><strong>Pet Types:</strong> ${booking.petTypes.join(', ')}</p>` : ''}
+                  ${booking.serviceAddress ? `<p><strong>Service Address:</strong> ${booking.serviceAddress}</p>` : ''}
+                </div>
+
+                ${booking.specialInstructions || booking.notes ? `
+                <div class="booking-details">
+                  ${booking.specialInstructions ? `
+                  <h4>⚠️ Special Instructions:</h4>
+                  <p>${booking.specialInstructions}</p>
+                  ` : ''}
+                  
+                  ${booking.notes ? `
+                  <h4>📝 Service Notes:</h4>
+                  <p>${booking.notes}</p>
+                  ` : ''}
+                </div>
+                ` : ''}
+
+                <div class="client-info">
+                  <h3>👤 Client Contact Information</h3>
+                  <p><strong>Name:</strong> ${client.firstName} ${client.lastName}</p>
+                  <p><strong>Email:</strong> ${client.email}</p>
+                  ${client.phoneNumber ? `<p><strong>Phone:</strong> ${client.phoneNumber}</p>` : ''}
+                  ${client.address ? `<p><strong>Address:</strong> ${client.address}</p>` : ''}
+                  ${client.emergencyContact ? `<p><strong>Emergency Contact:</strong> ${client.emergencyContact}</p>` : ''}
+                </div>
+
+                <div class="info-box">
+                  <h4>📞 Next Steps:</h4>
+                  <ul>
+                    <li><strong>Contact Client:</strong> Reach out within 24 hours to coordinate details and confirm arrangements</li>
+                    <li><strong>Review Pet Information:</strong> Check the client's pet profiles for care instructions and medical needs</li>
+                    <li><strong>Confirm Access:</strong> Verify how you'll access the home (keys, lockbox, etc.)</li>
+                    <li><strong>Prepare Supplies:</strong> Gather any necessary items for the service</li>
+                    <li><strong>Coordinate Timing:</strong> Confirm exact visit times with the client</li>
+                  </ul>
+                </div>
+
+                <div style="text-align: center; margin: 30px 0; padding: 20px; background-color: #FFF3CD; border-radius: 8px;">
+                  <p style="margin: 0;"><strong>💡 Questions or Concerns?</strong></p>
+                  <p style="margin: 10px 0;">Contact Admin: <a href="mailto:${process.env.ADMIN_EMAIL || 'admin@whiskarz.com'}" style="color: #1A2A6C; font-weight: 600;">${process.env.ADMIN_EMAIL || 'admin@whiskarz.com'}</a></p>
+                </div>
+
+                <p style="margin-top: 30px;">Thank you for being part of our team and providing excellent care to our clients' pets!</p>
+                
+                <p style="margin-top: 20px;">
+                  <strong>Best Regards,</strong><br>
+                  <span style="color: #1A2A6C; font-weight: 700;">The Whiskarz Team</span> 🐾
+                </p>
+              </div>
+              
+              <div class="footer">
+                <p style="font-size: 16px; font-weight: 700; color: #00AEEF; margin-bottom: 15px;">🐾 Whiskarz Pet-Sitting 🐾</p>
+                <p><strong>📧 Admin & Support:</strong> <a href="mailto:${process.env.ADMIN_EMAIL || 'admin@whiskarz.com'}">${process.env.ADMIN_EMAIL || 'admin@whiskarz.com'}</a></p>
+                <p style="margin-top: 20px; opacity: 0.8;">&copy; 2025 Whiskarz Pet-Sitting. All rights reserved.</p>
+              </div>
             </div>
           </div>
         </body>
