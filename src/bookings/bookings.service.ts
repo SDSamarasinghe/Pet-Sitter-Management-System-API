@@ -39,12 +39,15 @@ export class BookingsService {
       const client = await this.userModel.findById(booking.userId).exec();
       const sitter = await this.userModel.findById(booking.sitterId).exec();
       
-      if (!client || !sitter) return;
+      if (!client || !sitter) {
+        console.log('Cannot send assignment email - client or sitter not found');
+        return;
+      }
 
-      // For now, just log the assignment - we could create a specific template later
-      console.log(`Sitter ${sitter.firstName} ${sitter.lastName} assigned to booking ${booking._id} for client ${client.firstName} ${client.lastName}`);
+      // Send email notification to the assigned sitter
+      await this.emailService.sendSitterAssignmentEmail(booking, client, sitter);
 
-      console.log(`Sitter assignment notification sent for booking ${booking._id}`);
+      console.log(`✅ Sitter assignment notification sent for booking ${booking._id}`);
     } catch (error) {
       console.error('Failed to send sitter assignment notification:', error);
       // Don't throw error - email failure shouldn't break booking assignment
