@@ -93,60 +93,143 @@ export class EmailService {
           <meta charset="utf-8">
           <title>Booking Pending Review</title>
           <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background-color: #FF9800; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-            .content { padding: 30px; background-color: #f9f9f9; }
-            .booking-details { background-color: white; padding: 20px; margin: 15px 0; border-radius: 8px; border-left: 4px solid #FF9800; }
-            .status-badge { background-color: #FFF3E0; color: #F57C00; padding: 8px 16px; border-radius: 20px; font-weight: bold; }
-            .footer { text-align: center; padding: 20px; color: #666; font-size: 14px; }
-            .highlight { background-color: #FFF3E0; padding: 2px 6px; border-radius: 4px; }
+            body { 
+              font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif;
+              line-height: 1.6; 
+              color: #2C3E50; 
+              margin: 0;
+              padding: 0;
+              background-color: #F5F7FA;
+            }
+            .email-wrapper { padding: 40px 20px; }
+            .container { 
+              max-width: 650px; 
+              margin: 0 auto; 
+              background-color: #ffffff;
+              border-radius: 12px;
+              overflow: hidden;
+              box-shadow: 0 4px 15px rgba(26, 42, 108, 0.1);
+            }
+            .header { 
+              background: linear-gradient(135deg, #1A2A6C 0%, #0F3460 100%);
+              color: white; 
+              padding: 40px 30px; 
+              text-align: center;
+            }
+            .header h1 {
+              margin: 0 0 10px 0;
+              font-size: 28px;
+              font-weight: 700;
+              color: white;
+            }
+            .header p {
+              margin: 0;
+              font-size: 16px;
+              opacity: 0.95;
+            }
+            .logo-badge { font-size: 48px; margin-bottom: 15px; }
+            .content { padding: 40px 30px; background-color: #ffffff; }
+            .status-badge {
+              display: inline-block;
+              background-color: #FFC107;
+              color: #856404;
+              padding: 10px 25px;
+              border-radius: 25px;
+              font-weight: 700;
+              margin: 15px 0;
+              font-size: 15px;
+            }
+            .booking-details {
+              background-color: #F5F7FA;
+              border: 2px solid #00AEEF;
+              border-radius: 10px;
+              padding: 25px;
+              margin: 25px 0;
+            }
+            .booking-details h3 {
+              margin-top: 0;
+              color: #1A2A6C;
+              font-size: 18px;
+              font-weight: 700;
+            }
+            .booking-details p {
+              margin: 10px 0;
+              color: #2C3E50;
+            }
+            .info-box {
+              background-color: #F5F7FA;
+              padding: 20px;
+              margin: 20px 0;
+              border-radius: 8px;
+              border-left: 4px solid #1A2A6C;
+            }
+            .info-box h4 { margin-top: 0; color: #1A2A6C; }
+            .info-box ul { color: #2C3E50; }
+            .footer { 
+              background-color: #2C3E50;
+              padding: 30px; 
+              text-align: center; 
+              font-size: 14px;
+              color: #F5F7FA;
+            }
+            .footer p { margin: 8px 0; color: #F5F7FA; }
+            .footer a { color: #00AEEF; text-decoration: none; font-weight: 600; }
+            .highlight-text {
+              background-color: #00AEEF;
+              color: white;
+              padding: 3px 8px;
+              border-radius: 4px;
+              font-weight: 700;
+            }
           </style>
         </head>
         <body>
-          <div class="container">
-            <div class="header">
-              <h1>⏳ Booking Received!</h1>
-              <p>Your booking is pending review</p>
-            </div>
-            <div class="content">
-              <p>Dear <strong>${client.firstName} ${client.lastName}</strong>,</p>
-              <p>Thank you for choosing Whiskarz Pet-Sitting! We have received your booking request and it is currently <span class="status-badge">PENDING REVIEW</span>.</p>
-              
-              <div class="booking-details">
-                <h3>📋 Your Booking Details</h3>
-                <p><strong>Service Dates:</strong> <span class="highlight">${startDate} to ${endDate}</span></p>
-                <p><strong>Service Times:</strong> ${startTime} - ${endTime}</p>
-                <p><strong>Service Type:</strong> ${booking.serviceType}</p>
-                <p><strong>Number of Pets:</strong> ${booking.numberOfPets}</p>
-                <p><strong>Pet Types:</strong> ${booking.petTypes?.join(', ')}</p>
-                <p><strong>Total Amount:</strong> <strong>$${booking.totalAmount}</strong></p>
-                <p><strong>Booking Reference:</strong> ${booking._id}</p>
+          <div class="email-wrapper">
+            <div class="container">
+              <div class="header">
+                <div class="logo-badge">🐾</div>
+                <h1>⏳ Booking Received!</h1>
+                <p>Your booking is pending review</p>
+              </div>
+              <div class="content">
+                <p style="font-size: 16px; color: #2C3E50;">Dear <strong style="color: #1A2A6C;">${client.firstName} ${client.lastName}</strong>,</p>
+                <p style="color: #2C3E50;">Thank you for choosing Whiskarz Pet-Sitting! We have received your booking request and it is currently <span class="status-badge">PENDING REVIEW</span>.</p>
                 
-                ${booking.notes ? `<p><strong>Your Notes:</strong> ${booking.notes}</p>` : ''}
-                ${booking.specialInstructions ? `<p><strong>Special Instructions:</strong> ${booking.specialInstructions}</p>` : ''}
-                ${booking.clientNotes ? `<p><strong>Additional Notes:</strong> ${booking.clientNotes}</p>` : ''}
-              </div>
+                <div class="booking-details">
+                  <h3>📋 Your Booking Details</h3>
+                  <p><strong>Service Dates:</strong> <span class="highlight-text">${startDate} to ${endDate}</span></p>
+                  <p><strong>Service Times:</strong> ${startTime} - ${endTime}</p>
+                  <p><strong>Service Type:</strong> ${booking.serviceType}</p>
+                  <p><strong>Number of Pets:</strong> ${booking.numberOfPets}</p>
+                  <p><strong>Pet Types:</strong> ${booking.petTypes?.join(', ')}</p>
+                  <p><strong>Total Amount:</strong> <strong style="color: #1A2A6C;">$${booking.totalAmount}</strong></p>
+                  <p><strong>Booking Reference:</strong> ${booking._id}</p>
+                  
+                  ${booking.notes ? `<p><strong>Your Notes:</strong> ${booking.notes}</p>` : ''}
+                  ${booking.specialInstructions ? `<p><strong>Special Instructions:</strong> ${booking.specialInstructions}</p>` : ''}
+                  ${booking.clientNotes ? `<p><strong>Additional Notes:</strong> ${booking.clientNotes}</p>` : ''}
+                </div>
 
-              <div style="background-color: #E8F5E8; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h4>🔔 What happens next?</h4>
-                <ul>
-                  <li><strong>Review:</strong> Our team will review your booking request within 24 hours</li>
-                  <li><strong>Confirmation:</strong> You'll receive an email once your booking is confirmed</li>
-                  <li><strong>Payment:</strong> Payment instructions will be provided upon confirmation</li>
-                  <li><strong>Sitter Assignment:</strong> We'll assign the best available sitter for your pets</li>
-                </ul>
-              </div>
+                <div class="info-box">
+                  <h4>🔔 What happens next?</h4>
+                  <ul>
+                    <li><strong>Review:</strong> Our team will review your booking request within 24 hours</li>
+                    <li><strong>Confirmation:</strong> You'll receive an email once your booking is confirmed</li>
+                    <li><strong>Payment:</strong> Payment instructions will be provided upon confirmation</li>
+                    <li><strong>Sitter Assignment:</strong> We'll assign the best available sitter for your pets</li>
+                  </ul>
+                </div>
 
-              <div style="text-align: center; margin: 30px 0;">
-                <p><strong>Questions or need to make changes?</strong></p>
-                <p>Contact us at: <a href="mailto:${process.env.ADMIN_EMAIL || 'admin@whiskarz.com'}">${process.env.ADMIN_EMAIL || 'admin@whiskarz.com'}</a></p>
+                <div style="text-align: center; margin: 30px 0;">
+                  <p style="color: #2C3E50;"><strong>Questions or need to make changes?</strong></p>
+                  <p style="color: #2C3E50;">Contact us at: <a href="mailto:${process.env.ADMIN_EMAIL || 'admin@whiskarz.com'}" style="color: #00AEEF; text-decoration: none; font-weight: 600;">${process.env.ADMIN_EMAIL || 'admin@whiskarz.com'}</a></p>
+                </div>
               </div>
-            </div>
-            <div class="footer">
-              <p><strong>Whiskarz Pet-Sitting</strong></p>
-              <p>Where your pets are treated like royalty! 👑</p>
-              <p>This is an automated notification. Please save this email for your records.</p>
+              <div class="footer">
+                <p style="font-size: 16px; font-weight: 700; color: #00AEEF; margin-bottom: 15px;">🐾 Whiskarz Pet-Sitting 🐾</p>
+                <p>Where your pets are treated like royalty! 👑</p>
+                <p style="opacity: 0.8;">This is an automated notification. Please save this email for your records.</p>
+              </div>
             </div>
           </div>
         </body>
