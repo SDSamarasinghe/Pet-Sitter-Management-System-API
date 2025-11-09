@@ -52,29 +52,27 @@ export class PetsService {
   async findByUserId(userId: string): Promise<Pet[]> {
     try {
       // Convert userId to ObjectId for proper matching
-      const objectId = new Types.ObjectId(userId);
+      const userObjectId = new Types.ObjectId(userId); 
+      const allPets = await this.petModel.find().exec();
+      allPets.forEach(pet => {
+        const petUserIdString = pet.userId.toString();
+        const match = petUserIdString === userId;
+      });
       
-      // Query for pets where userId matches in all possible formats
+      // Query for pets where userId matches
       const pets = await this.petModel
-        .find({
-          $or: [
-            { userId: userId }, // Match as string (for legacy data)
-            { userId: objectId }, // Match as ObjectId (proper format)
-            { 'userId._id': userId }, // Match when userId is populated as object
-            { 'userId._id': objectId } // Match when userId is populated as ObjectId
-          ]
-        })
+        .find({ userId: userObjectId })
         .populate('userId', 'email firstName lastName') // Populate user details
         .exec();
 
       // For each pet, fetch and attach medical and care data
       const petsWithDetails = await Promise.all(
         pets.map(async (pet) => {
-          const petIdString = pet._id.toString(); // Convert ObjectId to string for querying
+          const petObjectId = pet._id; // Use ObjectId directly
           
           const [careData, medicalData] = await Promise.all([
-            this.petCareModel.findOne({ petId: petIdString }).exec(),
-            this.petMedicalModel.findOne({ petId: petIdString }).exec()
+            this.petCareModel.findOne({ petId: petObjectId }).exec(),
+            this.petMedicalModel.findOne({ petId: petObjectId }).exec()
           ]);
 
           return {
