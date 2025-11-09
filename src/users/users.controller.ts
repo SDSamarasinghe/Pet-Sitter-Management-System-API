@@ -317,4 +317,49 @@ export class UsersController {
     const { password, ...result } = user.toObject();
     return result;
   }
+
+  /**
+   * DELETE /users/sitters/:id - Delete a sitter from the system (admin only)
+   * Protected: Only admins can delete sitters
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Delete('sitters/:id')
+  async deleteSitter(@Param('id') id: string) {
+    // Validate ObjectId format
+    if (!this.isValidObjectId(id)) {
+      throw new BadRequestException('Invalid user ID format');
+    }
+
+    // Verify the user is actually a sitter
+    const user = await this.usersService.findById(id);
+    if (user.role !== 'sitter') {
+      throw new BadRequestException('User is not a sitter');
+    }
+
+    return this.usersService.deleteUser(id);
+  }
+
+  /**
+   * DELETE /users/clients/:id - Delete a client from the system (admin only)
+   * Protected: Only admins can delete clients
+   * This will also delete all associated pets and their data
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Delete('clients/:id')
+  async deleteClient(@Param('id') id: string) {
+    // Validate ObjectId format
+    if (!this.isValidObjectId(id)) {
+      throw new BadRequestException('Invalid user ID format');
+    }
+
+    // Verify the user is actually a client
+    const user = await this.usersService.findById(id);
+    if (user.role !== 'client') {
+      throw new BadRequestException('User is not a client');
+    }
+
+    return this.usersService.deleteUser(id);
+  }
 }
