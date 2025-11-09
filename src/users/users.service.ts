@@ -483,4 +483,54 @@ export class UsersService {
       },
     });
   }
+
+  /**
+   * Delete user (Admin only)
+   * Removes user and all associated data (pets, pet care, pet medical)
+   */
+  async deleteUser(userId: string): Promise<{ message: string; deletedUser: any }> {
+    // Find the user first
+    const user = await this.userModel.findById(userId);
+    
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Get user role and name for the response message
+    const userRole = user.role;
+    const userName = `${user.firstName} ${user.lastName}`;
+
+    // If user is a client, delete all associated pets and their data
+    if (user.role === 'client') {
+      // Find all pets belonging to this user
+      const pets = await this.petModel.find({ userId: userId });
+      
+      // Delete pet care and medical records for each pet
+      for (const pet of pets) {
+        const petIdString = pet._id.toString();
+        await this.petCareModel.deleteMany({ petId: petIdString });
+        await this.petMedicalModel.deleteMany({ petId: petIdString });
+      }
+      
+      // Delete all pets
+      await this.petModel.deleteMany({ userId: userId });
+      
+      console.log(`🗑️ Deleted ${pets.length} pets and their associated data for client ${userName}`);
+    }
+
+    // Delete the user
+    await this.userModel.findByIdAndDelete(userId);
+
+    console.log(`✅ Successfully deleted ${userRole}: ${userName} (ID: ${userId})`);
+
+    return {
+      message: `${userRole.charAt(0).toUpperCase() + userRole.slice(1)} "${userName}" has been successfully removed from the system`,
+      deletedUser: {
+        id: userId,
+        name: userName,
+        email: user.email,
+        role: userRole,
+      }
+    };
+  }
 }
