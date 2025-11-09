@@ -4,33 +4,190 @@
     <meta charset="utf-8">
     <title>New User Registration - Whiskarz Pet-Sitting</title>
     <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background-color: #f4f4f4; padding: 20px; text-align: center; }
-        .content { padding: 20px; }
-        .footer { background-color: #f4f4f4; padding: 10px; text-align: center; font-size: 12px; }
+        body { 
+            font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif;
+            line-height: 1.6; 
+            color: #2C3E50; 
+            margin: 0;
+            padding: 0;
+            background-color: #F5F7FA;
+        }
+        .email-wrapper {
+            padding: 40px 20px;
+        }
+        .container { 
+            max-width: 650px; 
+            margin: 0 auto; 
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(26, 42, 108, 0.1);
+        }
+        .header { 
+            background: linear-gradient(135deg, #1A2A6C 0%, #0F3460 100%);
+            color: white; 
+            padding: 40px 30px; 
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+            font-weight: 700;
+            color: white;
+        }
+        .header h2 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 400;
+            opacity: 0.95;
+            color: white;
+        }
+        .logo-badge {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        .content { 
+            padding: 40px 30px; 
+            background-color: #ffffff;
+        }
+        .user-info-box {
+            background-color: #F5F7FA;
+            border: 2px solid #00AEEF;
+            border-radius: 10px;
+            padding: 25px;
+            margin: 25px 0;
+        }
+        .user-info-box h3 {
+            margin-top: 0;
+            color: #1A2A6C;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .user-info-box ul {
+            list-style: none;
+            padding: 0;
+            margin: 15px 0 0 0;
+        }
+        .user-info-box li {
+            margin: 10px 0;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            border-left: 3px solid #00AEEF;
+            color: #2C3E50;
+        }
+        .user-info-box li strong {
+            color: #1A2A6C;
+            font-weight: 600;
+            min-width: 120px;
+            display: inline-block;
+        }
+        .action-box {
+            background-color: #F5F7FA;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 8px;
+            border-left: 4px solid #1A2A6C;
+        }
+        .action-box p {
+            margin: 8px 0;
+            color: #2C3E50;
+        }
+        .action-box strong {
+            color: #1A2A6C;
+        }
+        .footer { 
+            background-color: #2C3E50;
+            padding: 30px; 
+            text-align: center; 
+            font-size: 14px;
+            color: #F5F7FA;
+        }
+        .footer p {
+            margin: 8px 0;
+            color: #F5F7FA;
+        }
+        .footer a {
+            color: #00AEEF;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .divider {
+            border: none;
+            height: 1px;
+            background-color: #F5F7FA;
+            margin: 30px 0;
+        }
+        .status-badge {
+            display: inline-block;
+            background-color: #00AEEF;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-weight: 700;
+            margin: 15px 0;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Whiskarz Pet-Sitting System</h1>
-            <h2>New User Registration</h2>
-        </div>
-        <div class="content">
-            <p>Hello Admin,</p>
-            <p>A new user has registered and is pending approval:</p>
-            <ul>
-                <li><strong>Name:</strong> {{firstName}} {{lastName}}</li>
-                <li><strong>Email:</strong> {{email}}</li>
-                <li><strong>Role:</strong> {{role}}</li>
-                <li><strong>Registration Date:</strong> {{registrationDate}}</li>
-            </ul>
-            <p>Please review and approve or reject this user in the admin panel.</p>
-            <p>Best regards,<br>Whiskarz Pet-Sitting System</p>
-        </div>
-        <div class="footer">
-            <p>&copy; 2025 Whiskarz Pet-Sitting. All rights reserved.</p>
+    <div class="email-wrapper">
+        <div class="container">
+            <div class="header">
+                <div class="logo-badge">🔔</div>
+                <h1>Whiskarz Pet-Sitting System</h1>
+                <h2>New User Registration</h2>
+            </div>
+            
+            <div class="content">
+                <p style="font-size: 16px; color: #2C3E50;">Hello <strong style="color: #1A2A6C;">Admin</strong>,</p>
+                
+                <p style="color: #2C3E50;">A new user has registered and is pending approval:</p>
+
+                <div class="status-badge">
+                    ⏳ PENDING APPROVAL
+                </div>
+
+                <div class="user-info-box">
+                    <h3>👤 User Information</h3>
+                    <ul>
+                        <li>
+                            <strong>Name:</strong> 
+                            <span>{{firstName}} {{lastName}}</span>
+                        </li>
+                        <li>
+                            <strong>Email:</strong> 
+                            <span>{{email}}</span>
+                        </li>
+                        <li>
+                            <strong>Role:</strong> 
+                            <span>{{role}}</span>
+                        </li>
+                        <li>
+                            <strong>Registration Date:</strong> 
+                            <span>{{registrationDate}}</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="action-box">
+                    <p><strong>⚡ Action Required:</strong></p>
+                    <p>Please review and approve or reject this user in the admin panel.</p>
+                </div>
+
+                <hr class="divider">
+
+                <p style="margin-top: 30px; color: #2C3E50;">
+                    <strong>Best regards,</strong><br>
+                    <span style="color: #1A2A6C; font-weight: 700;">Whiskarz Pet-Sitting System</span> 🐾
+                </p>
+            </div>
+            
+            <div class="footer">
+                <p style="font-size: 16px; font-weight: 700; color: #00AEEF; margin-bottom: 15px;">🐾 Whiskarz Pet-Sitting 🐾</p>
+                <p><strong>📧 Admin & Support:</strong> <a href="mailto:admin@whiskarz.com">admin@whiskarz.com</a></p>
+                <p style="margin-top: 20px; opacity: 0.8;">&copy; 2025 Whiskarz Pet-Sitting. All rights reserved.</p>
+            </div>
         </div>
     </div>
 </body>
