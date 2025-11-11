@@ -68,9 +68,86 @@ export class CreateUserDto {
   @IsOptional()
   emergencyContact?: string;
 
+    // Emergency contact details
+    @IsString()
+    @IsOptional()
+    emergencyContactFirstName?: string;
+
+    @IsString()
+    @IsOptional()
+    emergencyContactLastName?: string;
+
+    @IsString()
+    @IsOptional()
+    emergencyContactCellPhone?: string;
+
+    @IsString()
+    @IsOptional()
+    emergencyContactHomePhone?: string;
+
+    
+
   @IsString()
   @IsOptional()
   homeCareInfo?: string;
+
+    // Home care details
+    @IsString()
+    @IsOptional()
+    parkingForSitter?: string;
+
+    @IsString()
+    @IsOptional()
+    garbageCollectionDay?: string;
+
+    @IsString()
+    @IsOptional()
+    fuseBoxLocation?: string;
+
+    @IsString()
+    @IsOptional()
+    outOfBoundAreas?: string;
+
+    @IsString()
+    @IsOptional()
+    videoSurveillance?: string;
+
+    @IsString()
+    @IsOptional()
+    cleaningSupplyLocation?: string;
+
+    @IsString()
+    @IsOptional()
+    broomDustpanLocation?: string;
+
+    @IsString()
+    @IsOptional()
+    mailPickUp?: string;
+
+    @IsString()
+    @IsOptional()
+    waterIndoorPlants?: string;
+
+    @IsString()
+    @IsOptional()
+    additionalHomeCareInfo?: string;
+
+      // Key handling details
+      @IsEnum(['Concierge', 'Lockbox', 'Keycafe'])
+      @IsOptional()
+      keyHandlingMethod?: string;
+
+      @IsString()
+      @IsOptional()
+      keyHandlingInstructions?: string;
+
+      @IsString()
+      @IsOptional()
+      superintendentContact?: string;
+
+      @IsString()
+      @IsOptional()
+      friendNeighbourContact?: string;
 
   @IsEnum(['new', 'existing'])
   @IsOptional()
