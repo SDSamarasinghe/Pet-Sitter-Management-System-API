@@ -1,8 +1,40 @@
-import { IsString, IsOptional, IsMongoId } from 'class-validator';
+import { IsString, IsOptional, IsMongoId, IsEnum } from 'class-validator';
 
 export class CreatePetCareDto {
   @IsString()
   petId: string;
+
+  @IsString()
+  @IsOptional()
+  personalityPhobiasPreferences?: string;
+
+  @IsString()
+  @IsOptional()
+  typeOfFood?: string;
+
+  @IsString()
+  @IsOptional()
+  dietFoodWaterInstructions?: string;
+
+  @IsEnum(['Yes', 'No'])
+  @IsOptional()
+  anyHistoryOfBiting?: string;
+
+  @IsString()
+  @IsOptional()
+  locationOfStoredPetFood?: string;
+
+  @IsString()
+  @IsOptional()
+  litterBoxLocation?: string;
+
+  @IsString()
+  @IsOptional()
+  locationOfPetCarrier?: string;
+
+  @IsString()
+  @IsOptional()
+  anyAdditionalInfo?: string;
 
   @IsString()
   @IsOptional()
@@ -18,6 +50,38 @@ export class CreatePetCareDto {
 }
 
 export class UpdatePetCareDto {
+  @IsString()
+  @IsOptional()
+  personalityPhobiasPreferences?: string;
+
+  @IsString()
+  @IsOptional()
+  typeOfFood?: string;
+
+  @IsString()
+  @IsOptional()
+  dietFoodWaterInstructions?: string;
+
+  @IsEnum(['Yes', 'No'])
+  @IsOptional()
+  anyHistoryOfBiting?: string;
+
+  @IsString()
+  @IsOptional()
+  locationOfStoredPetFood?: string;
+
+  @IsString()
+  @IsOptional()
+  litterBoxLocation?: string;
+
+  @IsString()
+  @IsOptional()
+  locationOfPetCarrier?: string;
+
+  @IsString()
+  @IsOptional()
+  anyAdditionalInfo?: string;
+
   @IsString()
   @IsOptional()
   careInstructions?: string;
