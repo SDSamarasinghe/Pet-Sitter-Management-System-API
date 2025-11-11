@@ -27,6 +27,18 @@ export class Pet {
   breed: string; // Pet breed
 
   @Prop()
+  colouring: string; // Pet colouring/color
+
+  @Prop({ enum: ['Male', 'Female'] })
+  gender: string; // Pet gender
+
+  @Prop()
+  dateOfBirth: string; // Date of birth (YYYY/MM/DD)
+
+  @Prop({ enum: ['Yes', 'No'] })
+  spayedNeutered: string; // Spayed or Neutered status
+
+  @Prop()
   age: string; // Pet age
 
   @Prop()
@@ -37,6 +49,12 @@ export class Pet {
 
   @Prop()
   microchipNumber: string;
+
+  @Prop()
+  rabiesTagNumber: string; // Rabies tag number
+
+  @Prop()
+  insuranceDetails: string; // Pet insurance information
 
   @Prop()
   vaccinations: string; // Vaccination history
