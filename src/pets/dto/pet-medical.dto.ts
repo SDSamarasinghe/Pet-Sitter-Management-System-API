@@ -23,6 +23,14 @@ export class CreatePetMedicalDto {
   @IsString()
   @IsOptional()
   currentOnVaccines?: string;
+
+  @IsString()
+  @IsOptional()
+  onAnyMedication?: string;
+
+  @IsString()
+  @IsOptional()
+  rabiesTagNumber?: string;
 }
 
 export class UpdatePetMedicalDto {
@@ -45,4 +53,12 @@ export class UpdatePetMedicalDto {
   @IsString()
   @IsOptional()
   currentOnVaccines?: string;
+
+  @IsString()
+  @IsOptional()
+  onAnyMedication?: string;
+
+  @IsString()
+  @IsOptional()
+  rabiesTagNumber?: string;
 }
