@@ -67,8 +67,65 @@ export class User {
   @Prop({ required: true })
   emergencyContact: string;
 
+    // Emergency contact details
+  @Prop()
+  emergencyContactFirstName: string;
+
+  @Prop()
+  emergencyContactLastName: string;
+
+  @Prop()
+  emergencyContactCellPhone: string;
+
+  @Prop()
+  emergencyContactHomePhone: string;
+
   @Prop({ required: true })
   homeCareInfo: string;
+
+    // Home care details
+  @Prop()
+  parkingForSitter: string;
+
+  @Prop()
+  garbageCollectionDay: string;
+
+  @Prop()
+  fuseBoxLocation: string;
+
+  @Prop()
+  outOfBoundAreas: string;
+
+  @Prop()
+  videoSurveillance: string;
+
+  @Prop()
+  cleaningSupplyLocation: string;
+
+  @Prop()
+  broomDustpanLocation: string;
+
+  @Prop()
+  mailPickUp: string;
+
+  @Prop()
+  waterIndoorPlants: string;
+
+  @Prop()
+  additionalHomeCareInfo: string;
+
+      // Key handling details
+  @Prop({ enum: ['Concierge', 'Lockbox', 'Keycafe'] })
+  keyHandlingMethod: string;
+
+  @Prop()
+  keyHandlingInstructions: string;
+
+  @Prop()
+  superintendentContact: string;
+
+  @Prop()
+  friendNeighbourContact: string;
 
   @Prop({ 
     enum: ['new', 'existing'], 
