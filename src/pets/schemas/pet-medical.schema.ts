@@ -23,6 +23,12 @@ export class PetMedical {
   @Prop()
   currentOnVaccines: string; // Vaccination status (e.g., "Fully Vaccinated")
 
+  @Prop()
+  onAnyMedication: string; // Current medications and dosage details
+
+  @Prop()
+  rabiesTagNumber: string; // Rabies tag number
+
   @Prop({ default: Date.now })
   createdAt: Date;
 
