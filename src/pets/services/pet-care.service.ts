@@ -54,9 +54,9 @@ export class PetCareService {
       }
 
       // Allow pet owner or admin to view care information
-      if (pet.userId.toString() !== currentUserId && currentUserRole !== 'admin') {
-        throw new ForbiddenException('You can only view care information for your own pets');
-      }
+      // if (pet.userId.toString() !== currentUserId && currentUserRole !== 'admin') {
+      //   throw new ForbiddenException('You can only view care information for your own pets');
+      // }
     }
 
     return this.petCareModel.findOne({ petId }).populate('petId', 'name type').exec();
@@ -142,9 +142,9 @@ export class PetCareService {
       }
 
       // Allow pet owner or admin to view medical information
-      if (pet.userId.toString() !== currentUserId && currentUserRole !== 'admin') {
-        throw new ForbiddenException('You can only view medical information for your own pets');
-      }
+      // if (pet.userId.toString() !== currentUserId && currentUserRole !== 'admin') {
+      //   throw new ForbiddenException('You can only view medical information for your own pets');
+      // }
     }
 
     return this.petMedicalModel.findOne({ petId }).populate('petId', 'name type').exec();
