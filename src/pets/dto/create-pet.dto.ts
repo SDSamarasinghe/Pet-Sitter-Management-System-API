@@ -19,6 +19,22 @@ export class CreatePetDto {
 
   @IsString()
   @IsOptional()
+  colouring?: string;
+
+  @IsEnum(['Male', 'Female'])
+  @IsOptional()
+  gender?: string;
+
+  @IsString()
+  @IsOptional()
+  dateOfBirth?: string;
+
+  @IsEnum(['Yes', 'No'])
+  @IsOptional()
+  spayedNeutered?: string;
+
+  @IsString()
+  @IsOptional()
   age?: string;
 
   @IsString()
@@ -32,6 +48,14 @@ export class CreatePetDto {
   @IsString()
   @IsOptional()
   microchipNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  rabiesTagNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  insuranceDetails?: string;
 
   @IsString()
   @IsOptional()
