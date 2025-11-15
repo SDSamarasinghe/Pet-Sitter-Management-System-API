@@ -133,12 +133,16 @@ export class BookingsService {
 
   /**
    * Create a new booking (Step 1: Pending status + emails)
+   * Creates individual booking records for each day in the date range
    */
   async create(createBookingDto: CreateBookingDto, userId: string): Promise<Booking> {
+    const startDate = new Date(createBookingDto.startDate);
+    const endDate = new Date(createBookingDto.endDate);
+    
     // Check for availability conflicts
     const conflicts = await this.checkAvailability(
-      new Date(createBookingDto.startDate),
-      new Date(createBookingDto.endDate),
+      startDate,
+      endDate,
       createBookingDto.sitterId
     );
 
@@ -146,47 +150,72 @@ export class BookingsService {
       throw new BadRequestException('Selected dates conflict with existing bookings');
     }
 
-    const newBooking = new this.bookingModel({
-      ...createBookingDto,
-      userId: new Types.ObjectId(userId),
-      createdBy: new Types.ObjectId(userId), // Regular booking created by the client themselves
-      sitterId: (createBookingDto.sitterId && createBookingDto.sitterId.trim() !== '') 
-        ? new Types.ObjectId(createBookingDto.sitterId) 
-        : undefined,
-      startDate: new Date(createBookingDto.startDate),
-      endDate: new Date(createBookingDto.endDate),
-      status: 'pending', // Step 1: All new bookings start as Pending
-      paymentStatus: 'pending',
-    });
+    // Calculate number of days in the range
+    const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const bookingsToCreate = [];
     
-    const savedBooking = await newBooking.save();
-    
-    // Populate the booking with user and sitter details for email notifications
-    const populatedBooking = await this.bookingModel
-      .findById(savedBooking._id)
-      .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
-      .populate('sitterId', 'firstName lastName email')
-      .exec();
-
-    // Step 1: Send pending booking emails (Client + Admin)
-    if (populatedBooking) {
-      await this.sendPendingBookingNotifications(populatedBooking);
+    // Create a booking for each day in the range
+    for (let i = 0; i <= daysDiff; i++) {
+      const currentDate = new Date(startDate);
+      currentDate.setDate(startDate.getDate() + i);
+      
+      // Calculate end date for this day (same day, preserving time)
+      const currentEndDate = new Date(currentDate);
+      const timeDiff = endDate.getTime() - startDate.getTime();
+      const timeDiffWithinDay = timeDiff % (1000 * 60 * 60 * 24);
+      currentEndDate.setTime(currentDate.getTime() + timeDiffWithinDay);
+      
+      const booking = new this.bookingModel({
+        ...createBookingDto,
+        userId: new Types.ObjectId(userId),
+        createdBy: new Types.ObjectId(userId),
+        sitterId: (createBookingDto.sitterId && createBookingDto.sitterId.trim() !== '') 
+          ? new Types.ObjectId(createBookingDto.sitterId) 
+          : undefined,
+        startDate: currentDate,
+        endDate: currentEndDate,
+        status: 'pending',
+        paymentStatus: 'pending',
+      });
+      
+      bookingsToCreate.push(booking);
     }
     
-    return savedBooking;
+    // Save all bookings
+    const savedBookings = await this.bookingModel.insertMany(bookingsToCreate);
+    
+    // Send email notification for the first booking (to avoid spam)
+    if (savedBookings.length > 0) {
+      const populatedBooking = await this.bookingModel
+        .findById(savedBookings[0]._id)
+        .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
+        .populate('sitterId', 'firstName lastName email')
+        .exec();
+
+      if (populatedBooking) {
+        await this.sendPendingBookingNotifications(populatedBooking);
+      }
+    }
+    
+    // Return the first booking as reference
+    return savedBookings[0] as any;
   }
 
   /**
    * Create a new booking by admin on behalf of client
+   * Creates individual booking records for each day in the date range
    */
   async createByAdmin(
     createBookingAdminDto: CreateBookingAdminDto, 
     adminUserId: string
   ): Promise<Booking> {
+    const startDate = new Date(createBookingAdminDto.startDate);
+    const endDate = new Date(createBookingAdminDto.endDate);
+    
     // Check for availability conflicts
     const conflicts = await this.checkAvailability(
-      new Date(createBookingAdminDto.startDate),
-      new Date(createBookingAdminDto.endDate),
+      startDate,
+      endDate,
       createBookingAdminDto.sitterId
     );
 
@@ -200,34 +229,55 @@ export class BookingsService {
       throw new NotFoundException('Client not found');
     }
 
-    const newBooking = new this.bookingModel({
-      ...createBookingAdminDto,
-      userId: new Types.ObjectId(createBookingAdminDto.userId), // Client for whom booking is created
-      createdBy: new Types.ObjectId(adminUserId), // Admin who created the booking
-      sitterId: (createBookingAdminDto.sitterId && createBookingAdminDto.sitterId.trim() !== '') 
-        ? new Types.ObjectId(createBookingAdminDto.sitterId) 
-        : undefined,
-      startDate: new Date(createBookingAdminDto.startDate),
-      endDate: new Date(createBookingAdminDto.endDate),
-      status: 'pending',
-      paymentStatus: 'pending',
-    });
+    // Calculate number of days in the range
+    const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const bookingsToCreate = [];
     
-    const savedBooking = await newBooking.save();
-    
-    // Populate the booking with user and sitter details for email notifications
-    const populatedBooking = await this.bookingModel
-      .findById(savedBooking._id)
-      .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
-      .populate('sitterId', 'firstName lastName email')
-      .exec();
-
-    // Send email notifications
-    if (populatedBooking) {
-      await this.sendPendingBookingNotifications(populatedBooking);
+    // Create a booking for each day in the range
+    for (let i = 0; i <= daysDiff; i++) {
+      const currentDate = new Date(startDate);
+      currentDate.setDate(startDate.getDate() + i);
+      
+      // Calculate end date for this day (same day, preserving time)
+      const currentEndDate = new Date(currentDate);
+      const timeDiff = endDate.getTime() - startDate.getTime();
+      const timeDiffWithinDay = timeDiff % (1000 * 60 * 60 * 24);
+      currentEndDate.setTime(currentDate.getTime() + timeDiffWithinDay);
+      
+      const booking = new this.bookingModel({
+        ...createBookingAdminDto,
+        userId: new Types.ObjectId(createBookingAdminDto.userId),
+        createdBy: new Types.ObjectId(adminUserId),
+        sitterId: (createBookingAdminDto.sitterId && createBookingAdminDto.sitterId.trim() !== '') 
+          ? new Types.ObjectId(createBookingAdminDto.sitterId) 
+          : undefined,
+        startDate: currentDate,
+        endDate: currentEndDate,
+        status: 'pending',
+        paymentStatus: 'pending',
+      });
+      
+      bookingsToCreate.push(booking);
     }
     
-    return savedBooking;
+    // Save all bookings
+    const savedBookings = await this.bookingModel.insertMany(bookingsToCreate);
+    
+    // Send email notification for the first booking (to avoid spam)
+    if (savedBookings.length > 0) {
+      const populatedBooking = await this.bookingModel
+        .findById(savedBookings[0]._id)
+        .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
+        .populate('sitterId', 'firstName lastName email')
+        .exec();
+
+      if (populatedBooking) {
+        await this.sendPendingBookingNotifications(populatedBooking);
+      }
+    }
+    
+    // Return the first booking as reference
+    return savedBookings[0] as any;
   }
 
   /**
@@ -239,7 +289,7 @@ export class BookingsService {
     sitterId?: string
   ): Promise<BookingDocument[]> {
     const query: any = {
-      status: { $in: ['confirmed', 'assigned', 'in_progress'] },
+      status: { $in: ['pending', 'confirmed', 'assigned', 'in_progress'] },
       $or: [
         {
           startDate: { $lte: endDate },
