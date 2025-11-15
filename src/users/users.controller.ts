@@ -238,7 +238,7 @@ export class UsersController {
    * Protected: Only admins can view user profiles by ID
    */
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin', 'sitter')
+  @Roles('admin', 'sitter', 'client')
   @Get(':id')
   async findOne(@Param('id') id: string) {
     // Validate ObjectId format
