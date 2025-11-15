@@ -353,6 +353,18 @@ export class BookingsController {
     return { message: 'Booking deleted successfully' };
   }
 
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Delete('admin/:id')
+  async adminDelete(@Param('id') id: string, @Request() req) {
+    if (!id || id.trim() === '') {
+      throw new BadRequestException('Booking ID is required');
+    }
+    await this.bookingsService.deleteByAdmin(id);
+    return { message: 'Booking deleted by admin successfully' };
+  }
+
   /**
    * PUT /bookings/:id/assign-sitter - Assign sitter to booking (admin only)
    */
