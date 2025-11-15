@@ -17,6 +17,14 @@ export class BookingsService {
     private emailService: EmailService,
   ) {}
 
+  async deleteByAdmin(bookingId: string): Promise<void> {
+    const booking = await this.bookingModel.findById(bookingId).exec();
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+    await this.bookingModel.findByIdAndDelete(bookingId).exec();
+  }
+
   /**
    * Send notifications for pending bookings (Step 1)
    */
