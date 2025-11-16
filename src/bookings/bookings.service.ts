@@ -150,20 +150,17 @@ export class BookingsService {
       throw new BadRequestException('Selected dates conflict with existing bookings');
     }
 
-    // Calculate number of days in the range
-    const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    // Calculate number of days in the range (inclusive)
+    const daysDiff = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     const bookingsToCreate = [];
     
     // Create a booking for each day in the range
-    for (let i = 0; i <= daysDiff; i++) {
-      const currentDate = new Date(startDate);
-      currentDate.setDate(startDate.getDate() + i);
+    for (let i = 0; i < daysDiff; i++) {
+      const currentDate = new Date(startDate.getTime() + (i * 24 * 60 * 60 * 1000));
       
-      // Calculate end date for this day (same day, preserving time)
-      const currentEndDate = new Date(currentDate);
-      const timeDiff = endDate.getTime() - startDate.getTime();
-      const timeDiffWithinDay = timeDiff % (1000 * 60 * 60 * 24);
-      currentEndDate.setTime(currentDate.getTime() + timeDiffWithinDay);
+      const timeDuration = endDate.getTime() - startDate.getTime();
+      const timeDurationWithinDay = timeDuration % (1000 * 60 * 60 * 24);
+      const currentEndDate = new Date(currentDate.getTime() + timeDurationWithinDay);
       
       const booking = new this.bookingModel({
         ...createBookingDto,
@@ -229,20 +226,17 @@ export class BookingsService {
       throw new NotFoundException('Client not found');
     }
 
-    // Calculate number of days in the range
-    const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    // Calculate number of days in the range (inclusive)
+    const daysDiff = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     const bookingsToCreate = [];
     
     // Create a booking for each day in the range
-    for (let i = 0; i <= daysDiff; i++) {
-      const currentDate = new Date(startDate);
-      currentDate.setDate(startDate.getDate() + i);
+    for (let i = 0; i < daysDiff; i++) {
+      const currentDate = new Date(startDate.getTime() + (i * 24 * 60 * 60 * 1000));
       
-      // Calculate end date for this day (same day, preserving time)
-      const currentEndDate = new Date(currentDate);
-      const timeDiff = endDate.getTime() - startDate.getTime();
-      const timeDiffWithinDay = timeDiff % (1000 * 60 * 60 * 24);
-      currentEndDate.setTime(currentDate.getTime() + timeDiffWithinDay);
+      const timeDuration = endDate.getTime() - startDate.getTime();
+      const timeDurationWithinDay = timeDuration % (1000 * 60 * 60 * 24);
+      const currentEndDate = new Date(currentDate.getTime() + timeDurationWithinDay);
       
       const booking = new this.bookingModel({
         ...createBookingAdminDto,
@@ -450,7 +444,7 @@ export class BookingsService {
   }
 
   /**
-   * Add notes to booking
+   * Add notes to booking with email notifications
    */
   async addNotes(
     bookingId: string,
@@ -459,36 +453,166 @@ export class BookingsService {
     currentUserId: string,
     currentUserRole: string
   ): Promise<BookingDocument> {
-    const booking = await this.bookingModel.findById(bookingId);
+    const booking = await this.bookingModel.findById(bookingId)
+      .populate('userId', 'firstName lastName email')
+      .populate('sitterId', 'firstName lastName email')
+      .exec();
+      
     if (!booking) {
       throw new NotFoundException('Booking not found');
     }
 
     // Check permissions
-    if (noteType === 'client' && booking.userId.toString() !== currentUserId && currentUserRole !== 'admin') {
+    if (noteType === 'client' && booking.userId._id.toString() !== currentUserId && currentUserRole !== 'admin') {
       throw new ForbiddenException('You can only add notes to your own bookings');
     }
-    if (noteType === 'sitter' && booking.sitterId?.toString() !== currentUserId && currentUserRole !== 'admin') {
+    if (noteType === 'sitter' && booking.sitterId?._id.toString() !== currentUserId && currentUserRole !== 'admin') {
       throw new ForbiddenException('Only the assigned sitter can add sitter notes');
     }
     if (noteType === 'admin' && currentUserRole !== 'admin') {
       throw new ForbiddenException('Only administrators can add admin notes');
     }
 
+    // Get sender information
+    const sender = await this.userModel.findById(currentUserId).exec();
+    const senderName = sender ? `${sender.firstName} ${sender.lastName}` : 'Unknown User';
+    const senderRole = noteType;
+
     // Add notes based on type
+    const timestamp = `[${new Date().toISOString()}]`;
     switch (noteType) {
       case 'client':
-        booking.clientNotes = (booking.clientNotes || '') + '\n' + `[${new Date().toISOString()}] ${notes}`;
+        booking.clientNotes = (booking.clientNotes || '') + '\n' + `${timestamp} ${notes}`;
         break;
       case 'sitter':
-        booking.sitterNotes = (booking.sitterNotes || '') + '\n' + `[${new Date().toISOString()}] ${notes}`;
+        booking.sitterNotes = (booking.sitterNotes || '') + '\n' + `${timestamp} ${notes}`;
         break;
       case 'admin':
-        booking.adminNotes = (booking.adminNotes || '') + '\n' + `[${new Date().toISOString()}] ${notes}`;
+        booking.adminNotes = (booking.adminNotes || '') + '\n' + `${timestamp} ${notes}`;
         break;
     }
 
-    return booking.save();
+    const savedBooking = await booking.save();
+
+    // Send email notifications to relevant parties
+    await this.sendNoteNotifications(savedBooking, notes, senderName, senderRole);
+
+    return savedBooking;
+  }
+
+  /**
+   * Send note notification emails to relevant parties
+   */
+  private async sendNoteNotifications(
+    booking: any,
+    note: string,
+    senderName: string,
+    senderRole: string
+  ): Promise<void> {
+    try {
+      console.log(`📧 Starting note notification emails for booking ${booking._id}`);
+      console.log(`📧 Sender: ${senderName} (${senderRole})`);
+      
+      const client = booking.userId;
+      const sitter = booking.sitterId;
+      const adminEmail = process.env.ADMIN_EMAIL || 'admin@whiskarz.com';
+
+      console.log(`📧 Client: ${client?.email || 'N/A'}`);
+      console.log(`📧 Sitter: ${sitter?.email || 'N/A'}`);
+      console.log(`📧 Admin: ${adminEmail}`);
+
+      // Determine who should receive the notification based on sender role
+      if (senderRole === 'client') {
+        console.log(`📧 Client note detected - notifying sitter and admin`);
+        // Client sent a note → notify sitter and admin
+        if (sitter && sitter.email) {
+          console.log(`📧 Sending email to sitter: ${sitter.email}`);
+          await this.emailService.sendNoteNotificationEmail(
+            booking,
+            note,
+            senderName,
+            'Client',
+            sitter.email,
+            `${sitter.firstName} ${sitter.lastName}`
+          );
+          console.log(`✅ Email sent to sitter`);
+        } else {
+          console.log(`⚠️ No sitter assigned or no sitter email`);
+        }
+        
+        // Notify admin
+        console.log(`📧 Sending email to admin: ${adminEmail}`);
+        await this.emailService.sendNoteNotificationEmail(
+          booking,
+          note,
+          senderName,
+          'Client',
+          adminEmail,
+          'Admin'
+        );
+        console.log(`✅ Email sent to admin`);
+      } else if (senderRole === 'sitter') {
+        console.log(`📧 Sitter note detected - notifying client and admin`);
+        // Sitter sent a note → notify client and admin
+        console.log(`📧 Sending email to client: ${client.email}`);
+        await this.emailService.sendNoteNotificationEmail(
+          booking,
+          note,
+          senderName,
+          'Sitter',
+          client.email,
+          `${client.firstName} ${client.lastName}`
+        );
+        console.log(`✅ Email sent to client`);
+        
+        // Notify admin
+        console.log(`📧 Sending email to admin: ${adminEmail}`);
+        await this.emailService.sendNoteNotificationEmail(
+          booking,
+          note,
+          senderName,
+          'Sitter',
+          adminEmail,
+          'Admin'
+        );
+        console.log(`✅ Email sent to admin`);
+      } else if (senderRole === 'admin') {
+        console.log(`📧 Admin note detected - notifying client and sitter`);
+        // Admin sent a note → notify both client and sitter
+        console.log(`📧 Sending email to client: ${client.email}`);
+        await this.emailService.sendNoteNotificationEmail(
+          booking,
+          note,
+          senderName,
+          'Admin',
+          client.email,
+          `${client.firstName} ${client.lastName}`
+        );
+        console.log(`✅ Email sent to client`);
+        
+        if (sitter && sitter.email) {
+          console.log(`📧 Sending email to sitter: ${sitter.email}`);
+          await this.emailService.sendNoteNotificationEmail(
+            booking,
+            note,
+            senderName,
+            'Admin',
+            sitter.email,
+            `${sitter.firstName} ${sitter.lastName}`
+          );
+          console.log(`✅ Email sent to sitter`);
+        } else {
+          console.log(`⚠️ No sitter assigned or no sitter email`);
+        }
+      }
+
+      console.log(`✅ All note notification emails sent successfully for booking ${booking._id}`);
+    } catch (error) {
+      console.error(`❌ Failed to send note notification emails for booking ${booking._id}:`, error);
+      console.error(`❌ Error details:`, error.message);
+      console.error(`❌ Stack trace:`, error.stack);
+      // Don't throw error - notification failure shouldn't break note creation
+    }
   }
 
   /**
