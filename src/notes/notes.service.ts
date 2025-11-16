@@ -4,22 +4,30 @@ import { Model, Types } from 'mongoose';
 import { Note, NoteDocument } from './schemas/note.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateNoteDto, CreateNoteReplyDto, GetNotesQueryDto } from './dto/note.dto';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class NotesService {
   constructor(
     @InjectModel(Note.name) private noteModel: Model<NoteDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    private emailService: EmailService,
   ) {}
 
   /**
    * Create a new note
    */
   async createNote(senderId: string, createNoteDto: CreateNoteDto): Promise<NoteDocument> {
+    
     // Verify recipient exists
     const recipient = await this.userModel.findById(createNoteDto.recipientId);
     if (!recipient) {
       throw new NotFoundException('Recipient not found');
+    }
+
+    const sender = await this.userModel.findById(senderId);
+    if (!sender) {
+      throw new NotFoundException('Sender not found');
     }
 
     // Don't allow sending notes to self
@@ -33,11 +41,17 @@ export class NotesService {
       text: createNoteDto.text,
       attachments: createNoteDto.attachments || [],
     });
-    
-
 
     const savedNote = await note.save();
-    return this.findNoteById(savedNote._id.toString());
+    const populatedNote = await this.findNoteById(savedNote._id.toString());
+
+    // Send email notification to recipient
+    await this.sendNoteNotification(populatedNote, sender, recipient, 'new');
+
+    // Also notify admin
+    await this.notifyAdmin(populatedNote, sender, recipient, 'new');
+
+    return populatedNote;
   }
 
   /**
@@ -136,18 +150,26 @@ export class NotesService {
     createReplyDto: CreateNoteReplyDto,
     userRole?: string
   ): Promise<NoteDocument> {
+    
     const note = await this.findNoteById(noteId);
     
-    // Admin can reply to any note
-    // Others (client/sitter) can only reply to notes they're involved in
-    // if (userRole !== 'admin') {
-    //   const senderIdStr = senderId.toString();
-    //   const noteSenderIdStr = note.senderId?.toString();
-    //   const noteRecipientIdStr = note.recipientId?.toString();
-    //   if (noteSenderIdStr !== senderIdStr && noteRecipientIdStr !== senderIdStr) {
-    //     throw new ForbiddenException('You can only reply to notes you are involved in');
-    //   }
-    // }
+    // Get sender and determine recipient
+    const sender = await this.userModel.findById(senderId);
+    if (!sender) {
+      throw new NotFoundException('Sender not found');
+    }
+
+    const noteSenderId = (note.senderId as any)._id?.toString() || note.senderId.toString();
+    const noteRecipientId = (note.recipientId as any)._id?.toString() || note.recipientId.toString();
+    
+    const recipientId = senderId === noteSenderId 
+      ? noteRecipientId 
+      : noteSenderId;
+    
+    const recipient = await this.userModel.findById(recipientId);
+    if (!recipient) {
+      throw new NotFoundException('Recipient not found');
+    }
     
     const reply = {
       senderId: new Types.ObjectId(senderId),
@@ -158,7 +180,14 @@ export class NotesService {
     note.replies.push(reply);
     note.updatedAt = new Date();
     await note.save();
-    return this.findNoteById(noteId);
+    
+    const updatedNote = await this.findNoteById(noteId);
+
+    await this.sendNoteNotification(updatedNote, sender, recipient, 'reply');
+
+    await this.notifyAdmin(updatedNote, sender, recipient, 'reply');
+
+    return updatedNote;
   }
 
   /**
@@ -223,5 +252,100 @@ export class NotesService {
       }
       return noteObj;
     });
+  }
+
+  /**
+   * Send note notification email to recipient
+   */
+  private async sendNoteNotification(
+    note: NoteDocument,
+    sender: UserDocument,
+    recipient: UserDocument,
+    type: 'new' | 'reply'
+  ): Promise<void> {
+    try {
+      const senderName = `${sender.firstName} ${sender.lastName}`;
+      const recipientName = `${recipient.firstName} ${recipient.lastName}`;
+      const senderRole = sender.role || 'User';
+      
+      // Get the text (either the note text or the last reply text)
+      const messageText = type === 'reply' && note.replies.length > 0
+        ? note.replies[note.replies.length - 1].text
+        : note.text;
+
+      console.log(`📧 [NOTES SERVICE] Preparing ${type} email notification`);
+      console.log(`📧 [NOTES SERVICE] From: ${senderName} (${senderRole})`);
+      console.log(`📧 [NOTES SERVICE] To: ${recipient.email}`);
+
+      // Create a mock booking object for the email template
+      const mockBooking = {
+        _id: note._id,
+        startDate: note.createdAt,
+        endDate: note.createdAt,
+        serviceType: 'Communication Note',
+        numberOfPets: 'N/A'
+      };
+
+      await this.emailService.sendNoteNotificationEmail(
+        mockBooking,
+        messageText,
+        senderName,
+        senderRole.charAt(0).toUpperCase() + senderRole.slice(1),
+        recipient.email,
+        recipientName
+      );
+
+      console.log(`✅ [NOTES SERVICE] ${type} notification email sent to ${recipient.email}`);
+    } catch (error) {
+      console.error(`❌ [NOTES SERVICE] Failed to send ${type} notification email:`, error);
+      console.error(`❌ [NOTES SERVICE] Error details:`, error.message);
+      // Don't throw - email failure shouldn't break note creation
+    }
+  }
+
+  /**
+   * Notify admin about new notes/replies
+   */
+  private async notifyAdmin(
+    note: NoteDocument,
+    sender: UserDocument,
+    recipient: UserDocument,
+    type: 'new' | 'reply'
+  ): Promise<void> {
+    try {
+      const adminEmail = process.env.ADMIN_EMAIL || 'admin@whiskarz.com';
+      const senderName = `${sender.firstName} ${sender.lastName}`;
+      const senderRole = sender.role || 'User';
+      
+      // Get the text (either the note text or the last reply text)
+      const messageText = type === 'reply' && note.replies.length > 0
+        ? note.replies[note.replies.length - 1].text
+        : note.text;
+
+      console.log(`📧 [NOTES SERVICE] Notifying admin about ${type}`);
+
+      // Create a mock booking object for the email template
+      const mockBooking = {
+        _id: note._id,
+        startDate: note.createdAt,
+        endDate: note.createdAt,
+        serviceType: 'Communication Note',
+        numberOfPets: 'N/A'
+      };
+
+      await this.emailService.sendNoteNotificationEmail(
+        mockBooking,
+        messageText,
+        senderName,
+        senderRole.charAt(0).toUpperCase() + senderRole.slice(1),
+        adminEmail,
+        'Admin'
+      );
+
+      console.log(`✅ [NOTES SERVICE] Admin notification sent`);
+    } catch (error) {
+      console.error(`❌ [NOTES SERVICE] Failed to send admin notification:`, error);
+      // Don't throw - email failure shouldn't break note creation
+    }
   }
 }
