@@ -1068,4 +1068,171 @@ export class EmailService {
       `,
     });
   }
+
+  async sendNoteNotificationEmail(
+    booking: any,
+    note: string,
+    senderName: string,
+    senderRole: string,
+    recipientEmail: string,
+    recipientName: string
+  ): Promise<void> {
+    try {
+      
+      const bookingUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}`;
+      const startDate = new Date(booking.startDate).toLocaleDateString();
+      const endDate = new Date(booking.endDate).toLocaleDateString();
+      
+      
+      await this.mailerService.sendMail({
+        to: recipientEmail,
+        subject: `[Whiskarz] ${senderName} added a note.`,
+        html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>New Note Notification</title>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+              line-height: 1.6;
+              color: #1A2A6C;
+              margin: 0;
+              padding: 0;
+              background-color: #F5F7FA;
+            }
+            .email-wrapper {
+              padding: 20px;
+              background-color: #F5F7FA;
+            }
+            .container {
+              max-width: 600px;
+              margin: 0 auto;
+              background-color: #ffffff;
+              border-radius: 8px;
+              overflow: hidden;
+              box-shadow: 0 2px 8px rgba(26,42,108,0.07);
+            }
+            .header {
+              background-color: #00AEEF;
+              padding: 24px 30px 10px 30px;
+              border-bottom: 1px solid #e0e0e0;
+              text-align: left;
+            }
+            .header h1 {
+              margin: 0;
+              font-size: 20px;
+              font-weight: 700;
+              color: #1A2A6C;
+              line-height: 1.3;
+            }
+            .content {
+              padding: 30px;
+              background-color: #ffffff;
+            }
+            .warning-box {
+              background-color: #E8F5FD;
+              border: 1px solid #00AEEF;
+              border-radius: 6px;
+              padding: 15px;
+              margin: 0 0 25px 0;
+              color: #1A2A6C;
+            }
+            .warning-box a {
+              color: #00AEEF;
+              text-decoration: none;
+              font-weight: 500;
+            }
+            .greeting {
+              font-size: 16px;
+              color: #1A2A6C;
+              margin: 0 0 20px 0;
+            }
+            .message-content {
+              background-color: #F5F7FA;
+              padding: 18px;
+              margin: 20px 0;
+              font-size: 15px;
+              line-height: 1.6;
+              color: #1A2A6C;
+              border-radius: 6px;
+              border-left: 4px solid #00AEEF;
+            }
+            .signature {
+              margin: 20px 0;
+              font-size: 15px;
+              color: #1A2A6C;
+              font-weight: 600;
+            }
+            .cta-section {
+              background-color: #E8F5FD;
+              border-radius: 6px;
+              padding: 20px;
+              margin: 25px 0;
+              text-align: left;
+              color: #1A2A6C;
+            }
+            .cta-link {
+              display: inline-block;
+              color: #00AEEF;
+              text-decoration: none;
+              font-size: 14px;
+              word-break: break-all;
+              font-weight: 600;
+            }
+            .footer {
+              background-color: #1A2A6C;
+              padding: 20px 30px;
+              text-align: center;
+              border-top: 1px solid #e0e0e0;
+            }
+            .footer p {
+              margin: 5px 0;
+              font-size: 12px;
+              color: #F5F7FA;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="email-wrapper">
+            <div class="container">
+              <div class="header">
+                <h1>[Whiskarz Pet Sitters] ${senderName} added a note.</h1>
+              </div>
+              <div class="content">
+                <div class="warning-box">
+                  <p><strong>*Please do not reply to this email directly from your email account. We will not receive it. To reply to this note, log in to your Whiskarz account here:</strong></p>
+                  <p style="margin-top: 10px;"><a href="${bookingUrl}">${bookingUrl}</a> <strong>and click on Reply button under the notes section*</strong></p>
+                </div>
+                <p class="greeting">Dear ${recipientName},</p>
+                <div class="message-content">
+                  <p>${note.replace(/\n/g, '<br>')}</p>
+                </div>
+                <div class="signature">
+                  <p>${senderName}</p>
+                </div>
+                <div class="cta-section">
+                  <p><strong>Would you like to send a reply back? Just click the link below to go to your Whiskarz profile page</strong></p>
+                  <a href="${bookingUrl}" class="cta-link">${bookingUrl}</a>
+                </div>
+              </div>
+              <div class="footer">
+                <p>© ${new Date().getFullYear()} Whiskarz Pet Sitters. All rights reserved.</p>
+                <p>This is an automated notification. Please do not reply to this email.</p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      });
+      
+      console.log(`✅ [EMAIL SERVICE] Note notification email sent successfully to ${recipientEmail}`);
+    } catch (error) {
+      console.error(`❌ [EMAIL SERVICE] Failed to send note notification email to ${recipientEmail}:`, error);
+      console.error(`❌ [EMAIL SERVICE] Error details:`, error.message);
+      throw error;
+    }
+  }
 }
