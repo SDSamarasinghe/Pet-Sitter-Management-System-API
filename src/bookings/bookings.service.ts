@@ -8,6 +8,7 @@ import { CreateBookingAdminDto } from './dto/create-booking-admin.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { ServiceInquiryDto } from './dto/service-inquiry.dto';
 import { EmailService } from '../email/email.service';
+import { toDate } from 'date-fns-tz';
 
 @Injectable()
 export class BookingsService {
@@ -66,10 +67,27 @@ export class BookingsService {
    * Submit service inquiry (public endpoint)
    */
   async submitServiceInquiry(serviceInquiryDto: ServiceInquiryDto): Promise<any> {
-    // Check if user already exists
+    // Check if user already exists by email
     let user = await this.userModel.findOne({ email: serviceInquiryDto.email });
     
-    if (!user) {
+    if (serviceInquiryDto.customerType === 'existing') {
+      // Existing customer - user MUST exist
+      if (!user) {
+        throw new BadRequestException('No account found with this email. Please select "I am a new customer" or use the email associated with your account.');
+      }
+      
+      // Update user information if provided (in case they changed phone/address)
+      if (serviceInquiryDto.phoneNumber) user.phoneNumber = serviceInquiryDto.phoneNumber;
+      if (serviceInquiryDto.address) user.address = serviceInquiryDto.address;
+      await user.save();
+      
+      console.log(`📋 Service inquiry from EXISTING customer: ${user.email}`);
+    } else {
+      // New customer
+      if (user) {
+        throw new BadRequestException('An account with this email already exists. Please select "I am an existing customer" or use a different email address.');
+      }
+      
       // Create new user for service inquiry
       user = new this.userModel({
         email: serviceInquiryDto.email,
@@ -84,50 +102,153 @@ export class BookingsService {
         homeCareInfo: serviceInquiryDto.additionalDetails || 'Service inquiry submitted',
       });
       await user.save();
+      
+      console.log(`📋 Service inquiry from NEW customer: ${user.email}`);
     }
 
-    // Calculate estimated cost (basic calculation - can be enhanced)
-    const daysCount = Math.ceil((new Date(serviceInquiryDto.endDate).getTime() - new Date(serviceInquiryDto.startDate).getTime()) / (1000 * 60 * 60 * 24));
-    const baseRate = 50; // Base rate per day
-    const petMultiplier = serviceInquiryDto.numberOfPets * 0.8;
-    const estimatedCost = Math.round(daysCount * baseRate * petMultiplier);
-
-    // Create booking from service inquiry
-    const booking = new this.bookingModel({
-      userId: user._id,
-      createdBy: user._id, // Service inquiry is created by the client themselves
-      startDate: new Date(serviceInquiryDto.startDate),
-      endDate: new Date(serviceInquiryDto.endDate),
-      serviceType: 'Service Inquiry',
-      numberOfPets: serviceInquiryDto.numberOfPets,
-      petTypes: serviceInquiryDto.petTypes,
-      status: 'pending',
-      notes: serviceInquiryDto.additionalDetails || '',
-      adminNotes: `Service inquiry from ${serviceInquiryDto.customerType} customer`,
-      totalAmount: estimatedCost,
-      paymentStatus: 'pending',
-      serviceAddress: serviceInquiryDto.address,
-      specialInstructions: serviceInquiryDto.additionalDetails,
+    // Parse date range (strip any time component coming from frontend)
+    const startDate = new Date(serviceInquiryDto.startDate);
+    const endDate = new Date(serviceInquiryDto.endDate);
+    startDate.setUTCHours(0, 0, 0, 0);
+    endDate.setUTCHours(0, 0, 0, 0);
+    
+    console.log(`🔍 [DEBUG] Received dates:`, {
+      startDateString: serviceInquiryDto.startDate,
+      endDateString: serviceInquiryDto.endDate,
+      startDateParsed: startDate.toISOString(),
+      endDateParsed: endDate.toISOString(),
+      startTime: startDate.getTime(),
+      endTime: endDate.getTime(),
+      timeDiff: endDate.getTime() - startDate.getTime(),
     });
+    
+    // Calculate number of days in the range (inclusive)
+    const MS_PER_DAY = 1000 * 60 * 60 * 24;
+    const daysDiff = Math.floor((endDate.getTime() - startDate.getTime()) / MS_PER_DAY) + 1;
+    
+    console.log(`📅 Creating ${daysDiff} individual bookings from ${startDate.toDateString()} to ${endDate.toDateString()}`);
+    
+    // === Time Parsing ===
+    // Accept formats: HH:mm (24h), H:mm AM/PM, H AM/PM, HH (24h)
+    const parseTimeToMinutes = (value?: string, fallbackMinutes?: number): number => {
+      if (!value || !value.trim()) return fallbackMinutes ?? 9 * 60; // default 09:00
+      const raw = value.trim();
+      const ampmMatch = raw.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
+      if (ampmMatch) {
+        let hour = parseInt(ampmMatch[1], 10);
+        const minute = parseInt(ampmMatch[2] ?? '0', 10);
+        const suffix = ampmMatch[3].toUpperCase();
+        if (suffix === 'PM' && hour < 12) hour += 12;
+        if (suffix === 'AM' && hour === 12) hour = 0;
+        return hour * 60 + minute;
+      }
+      const hmMatch = raw.match(/^(\d{1,2}):(\d{2})$/);
+      if (hmMatch) {
+        const hour = parseInt(hmMatch[1], 10);
+        const minute = parseInt(hmMatch[2], 10);
+        if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) return hour * 60 + minute;
+      }
+      const hOnlyMatch = raw.match(/^(\d{1,2})$/);
+      if (hOnlyMatch) {
+        const hour = parseInt(hOnlyMatch[1], 10);
+        if (hour >= 0 && hour < 24) return hour * 60;
+      }
+      console.warn(`⚠️ Unrecognized time format '${value}', using fallback.`);
+      return fallbackMinutes ?? 9 * 60;
+    };
 
-    await booking.save();
+    const startMinutes = parseTimeToMinutes(serviceInquiryDto.startTime, 9 * 60); // default 09:00
+    const endMinutes = parseTimeToMinutes(serviceInquiryDto.endTime, 17 * 60); // default 17:00
+    let adjustedEndMinutes = endMinutes;
+    if (endMinutes <= startMinutes) {
+      // Prevent zero/negative duration; enforce +1 hour minimum
+      adjustedEndMinutes = startMinutes + 60;
+    }
 
-    // Populate the booking with user details for email notifications
-    const populatedBooking = await this.bookingModel
-      .findById(booking._id)
+    // Calculate estimated cost per day (CAD 46 per pet per day)
+    const baseRatePerPet = 46; // CAD 46 per pet per day
+    const costPerDay = baseRatePerPet * serviceInquiryDto.numberOfPets;
+    const totalEstimatedCost = costPerDay * daysDiff;
+    console.log(`💰 Cost calculation: baseRate=$${baseRatePerPet}/pet, numberOfPets=${serviceInquiryDto.numberOfPets}, costPerDay=$${costPerDay}`);
+    console.log(`⏱ Parsed times -> startMinutes=${startMinutes}, endMinutes=${endMinutes}, adjustedEndMinutes=${adjustedEndMinutes}`);
+    
+    const bookingIds = [];
+    
+    // Create a separate booking for each day in the range applying parsed times
+    // Use business timezone (America/Toronto) so all users see consistent clock times
+    const businessTimezone = serviceInquiryDto.timeZone || 'America/Toronto';
+    
+    for (let i = 0; i < daysDiff; i++) {
+      const dayDate = new Date(startDate.getTime() + i * MS_PER_DAY);
+      const dateStr = dayDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      // Build local time strings and convert to UTC using business timezone
+      const startTimeStr = `${Math.floor(startMinutes / 60).toString().padStart(2, '0')}:${(startMinutes % 60).toString().padStart(2, '0')}`;
+      const endTimeStr = `${Math.floor(adjustedEndMinutes / 60).toString().padStart(2, '0')}:${(adjustedEndMinutes % 60).toString().padStart(2, '0')}`;
+      
+      // Convert from business timezone to UTC
+      const startDateTime = toDate(`${dateStr}T${startTimeStr}:00`, { timeZone: businessTimezone });
+      const endDateTime = toDate(`${dateStr}T${endTimeStr}:00`, { timeZone: businessTimezone });
+      
+      console.log(`🔍 [DEBUG] Creating booking ${i + 1}/${daysDiff}:`, {
+        startDateTime: startDateTime.toISOString(),
+        endDateTime: endDateTime.toISOString(),
+        durationHours: (endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60 * 60),
+        costPerDay,
+      });
+      
+      // Extract clean service type (e.g., "Pet Sitting" from "Pet Sitting 1hr Holiday")
+      let cleanServiceType = 'Service Inquiry';
+      if (serviceInquiryDto.service) {
+        // Extract just the main service type (before any numbers/duration)
+        cleanServiceType = serviceInquiryDto.service.split(/\d/)[0].trim();
+        if (!cleanServiceType) cleanServiceType = serviceInquiryDto.service;
+      }
+      
+      const booking = new this.bookingModel({
+        userId: user._id,
+        createdBy: user._id, // Service inquiry is created by the client themselves
+        startDate: startDateTime,
+        endDate: endDateTime,
+        serviceType: cleanServiceType,
+        numberOfPets: serviceInquiryDto.numberOfPets,
+        petTypes: serviceInquiryDto.petTypes,
+        status: 'pending',
+        notes: serviceInquiryDto.additionalDetails || '',
+        adminNotes: `Service: ${serviceInquiryDto.service || 'Not specified'} | Customer: ${serviceInquiryDto.customerType} | Day ${i + 1}/${daysDiff} | Time: ${serviceInquiryDto.startTime || '09:00'} - ${serviceInquiryDto.endTime || '17:00'}`,
+        totalAmount: costPerDay,
+        paymentStatus: 'pending',
+        serviceAddress: serviceInquiryDto.address,
+        specialInstructions: serviceInquiryDto.additionalDetails,
+      });
+
+      await booking.save();
+      bookingIds.push(booking._id);
+      console.log(`✅ Created booking ${i + 1}/${daysDiff} with ID: ${booking._id} for ${dayDate.toDateString()} (${serviceInquiryDto.startTime || '09:00'}-${serviceInquiryDto.endTime || '17:00'}) Cost: $${costPerDay}`);
+    }
+    
+    console.log(`✅ Successfully created ${bookingIds.length} bookings:`, bookingIds.map(id => id.toString()));
+
+    // Get the first booking for email notification (with populated user details)
+    const firstBooking = await this.bookingModel
+      .findById(bookingIds[0])
       .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
       .exec();
 
-    // Send email notifications for service inquiry
-    if (populatedBooking) {
-      await this.sendPendingBookingNotifications(populatedBooking);
+    // Send email notifications for service inquiry (only once for the entire range)
+    if (firstBooking) {
+      console.log(`📧 Sending service inquiry notification emails...`);
+      await this.sendPendingBookingNotifications(firstBooking);
     }
 
     return {
       message: 'Service inquiry submitted successfully. We will contact you soon!',
-      bookingId: booking._id,
+      bookingIds,
       customerType: serviceInquiryDto.customerType,
-      estimatedCost,
+      totalDays: daysDiff,
+      estimatedCostPerDay: costPerDay,
+      totalEstimatedCost,
+      isExistingCustomer: serviceInquiryDto.customerType === 'existing',
     };
   }
 
@@ -158,9 +279,9 @@ export class BookingsService {
     for (let i = 0; i < daysDiff; i++) {
       const currentDate = new Date(startDate.getTime() + (i * 24 * 60 * 60 * 1000));
       
-      const timeDuration = endDate.getTime() - startDate.getTime();
-      const timeDurationWithinDay = timeDuration % (1000 * 60 * 60 * 24);
-      const currentEndDate = new Date(currentDate.getTime() + timeDurationWithinDay);
+      // Set end date to the same day (for daily bookings, start and end are the same)
+      const currentEndDate = new Date(currentDate);
+      currentEndDate.setHours(23, 59, 59, 999); // End of the same day
       
       const booking = new this.bookingModel({
         ...createBookingDto,
@@ -234,9 +355,9 @@ export class BookingsService {
     for (let i = 0; i < daysDiff; i++) {
       const currentDate = new Date(startDate.getTime() + (i * 24 * 60 * 60 * 1000));
       
-      const timeDuration = endDate.getTime() - startDate.getTime();
-      const timeDurationWithinDay = timeDuration % (1000 * 60 * 60 * 24);
-      const currentEndDate = new Date(currentDate.getTime() + timeDurationWithinDay);
+      // Set end date to the same day (for daily bookings, start and end are the same)
+      const currentEndDate = new Date(currentDate);
+      currentEndDate.setHours(23, 59, 59, 999); // End of the same day
       
       const booking = new this.bookingModel({
         ...createBookingAdminDto,
