@@ -26,6 +26,10 @@ export class ServiceInquiryDto {
   @IsNotEmpty()
   petTypes: string[];
 
+  @IsString()
+  @IsOptional()
+  service?: string; // Service type selected from dropdown
+
   @IsDateString()
   @IsNotEmpty()
   startDate: string;
@@ -33,6 +37,18 @@ export class ServiceInquiryDto {
   @IsDateString()
   @IsNotEmpty()
   endDate: string;
+
+  @IsString()
+  @IsOptional()
+  startTime?: string; // Time in HH:mm format
+
+  @IsString()
+  @IsOptional()
+  endTime?: string; // Time in HH:mm format
+
+  @IsString()
+  @IsOptional()
+  timeZone?: string; // Client timezone (e.g., 'America/Toronto')
 
   @IsString()
   @IsNotEmpty()
