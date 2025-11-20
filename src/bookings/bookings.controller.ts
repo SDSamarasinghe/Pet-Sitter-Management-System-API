@@ -9,7 +9,9 @@ import {
   Query,
   UseGuards, 
   Request,
-  BadRequestException
+  BadRequestException,
+  UsePipes,
+  ValidationPipe
 } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -29,6 +31,7 @@ export class BookingsController {
    * Public endpoint for the Whiskarz service inquiry form
    */
   @Post('service-inquiry')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   async submitServiceInquiry(@Body() serviceInquiryDto: ServiceInquiryDto) {
     return this.bookingsService.submitServiceInquiry(serviceInquiryDto);
   }
