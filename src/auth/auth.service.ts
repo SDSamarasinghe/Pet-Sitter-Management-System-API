@@ -67,6 +67,7 @@ export class AuthService {
         emergencyContact: user.emergencyContact,
         homeCareInfo: user.homeCareInfo,
         pendingAddress: user.pendingAddress,
+        firstTimeLogin: user.firstTimeLogin,
       },
     };
   }
