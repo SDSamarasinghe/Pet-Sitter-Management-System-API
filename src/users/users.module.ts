@@ -6,6 +6,7 @@ import { User, UserSchema } from './schemas/user.schema';
 import { Pet, PetSchema } from '../pets/schemas/pet.schema';
 import { PetCare, PetCareSchema } from '../pets/schemas/pet-care.schema';
 import { PetMedical, PetMedicalSchema } from '../pets/schemas/pet-medical.schema';
+import { Booking, BookingSchema } from '../bookings/schemas/booking.schema';
 import { AzureBlobModule } from '../azure-blob/azure-blob.module';
 
 @Module({
@@ -14,7 +15,8 @@ import { AzureBlobModule } from '../azure-blob/azure-blob.module';
       { name: User.name, schema: UserSchema },
       { name: Pet.name, schema: PetSchema },
       { name: PetCare.name, schema: PetCareSchema },
-      { name: PetMedical.name, schema: PetMedicalSchema }
+      { name: PetMedical.name, schema: PetMedicalSchema },
+      { name: Booking.name, schema: BookingSchema }
     ]),
     AzureBlobModule
   ],
