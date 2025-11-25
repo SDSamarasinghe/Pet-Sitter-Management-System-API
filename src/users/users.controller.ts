@@ -177,6 +177,22 @@ export class UsersController {
   }
 
   /**
+   * PUT /users/profile/first-time-login - Mark first time login as complete
+   * Protected: Update the authenticated user's firstTimeLogin flag
+   */
+  @UseGuards(JwtAuthGuard)
+  @Put('profile/first-time-login')
+  async completeFirstTimeLogin(@Request() req) {
+    const currentUser = req.user;
+    await this.usersService.updateFirstTimeLogin(currentUser.userId);
+    
+    return {
+      message: 'First time login completed',
+      firstTimeLogin: false
+    };
+  }
+
+  /**
    * POST /users/profile/picture - Upload profile picture
    * Protected: Update the authenticated user's profile picture
    */
