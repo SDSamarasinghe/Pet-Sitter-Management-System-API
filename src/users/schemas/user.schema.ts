@@ -196,6 +196,9 @@ export class User {
   @Prop()
   passwordResetExpires: Date; // Expiration time for password reset token
 
+  @Prop({ default: true })
+  firstTimeLogin: boolean; // Track if this is user's first login
+
   @Prop({ default: Date.now })
   createdAt: Date;
 
