@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { MailerService } from '@nestjs-modules/mailer';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { User, UserDocument } from './schemas/user.schema';
 import { Pet, PetDocument } from '../pets/schemas/pet.schema';
 import { PetCare, PetCareDocument } from '../pets/schemas/pet-care.schema';
 import { PetMedical, PetMedicalDocument } from '../pets/schemas/pet-medical.schema';
+import { Booking, BookingDocument } from '../bookings/schemas/booking.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AzureBlobService } from '../azure-blob/azure-blob.service';
@@ -18,6 +19,7 @@ export class UsersService {
     @InjectModel(Pet.name) private petModel: Model<PetDocument>,
     @InjectModel(PetCare.name) private petCareModel: Model<PetCareDocument>,
     @InjectModel(PetMedical.name) private petMedicalModel: Model<PetMedicalDocument>,
+    @InjectModel(Booking.name) private bookingModel: Model<BookingDocument>,
     private mailerService: MailerService,
     private azureBlobService: AzureBlobService,
   ) {}
@@ -495,7 +497,7 @@ export class UsersService {
 
   /**
    * Delete user (Admin only)
-   * Removes user and all associated data (pets, pet care, pet medical)
+   * Removes user and all associated data (pets, pet care, pet medical, bookings)
    */
   async deleteUser(userId: string): Promise<{ message: string; deletedUser: any }> {
     // Find the user first
@@ -508,6 +510,46 @@ export class UsersService {
     // Get user role and name for the response message
     const userRole = user.role;
     const userName = `${user.firstName} ${user.lastName}`;
+    // Prepare robust matching for legacy/string/ObjectId references
+    const userObjectId = Types.ObjectId.isValid(userId) ? new Types.ObjectId(userId) : null;
+
+    // Pre-count bookings for diagnostics
+    const clientBookingsBefore = await this.bookingModel.countDocuments({
+      $or: [
+        { userId: userId },
+        ...(userObjectId ? [{ userId: userObjectId }] : [])
+      ]
+    });
+    const sitterBookingsBefore = await this.bookingModel.countDocuments({
+      $or: [
+        { sitterId: userId },
+        ...(userObjectId ? [{ sitterId: userObjectId }] : [])
+      ]
+    });
+    console.log(`🔍 Pre-delete booking counts for ${userName}: as client=${clientBookingsBefore}, as sitter=${sitterBookingsBefore}`);
+
+    // Delete all bookings associated with this user (as client or sitter)
+    const bookingsAsClient = await this.bookingModel.deleteMany({
+      $or: [
+        { userId: userId },
+        ...(userObjectId ? [{ userId: userObjectId }] : [])
+      ]
+    });
+    const bookingsAsSitter = await this.bookingModel.deleteMany({
+      $or: [
+        { sitterId: userId },
+        ...(userObjectId ? [{ sitterId: userObjectId }] : [])
+      ]
+    });
+    const totalBookingsDeleted = (bookingsAsClient.deletedCount || 0) + (bookingsAsSitter.deletedCount || 0);
+    
+    console.log(`🗑️ Deleted ${totalBookingsDeleted} bookings for user ${userName} (${bookingsAsClient.deletedCount} as client, ${bookingsAsSitter.deletedCount} as sitter)`);
+    if (clientBookingsBefore > 0 && bookingsAsClient.deletedCount === 0) {
+      console.warn(`⚠️ Expected to delete client bookings but none matched. Check userId data formats.`);
+    }
+    if (sitterBookingsBefore > 0 && bookingsAsSitter.deletedCount === 0) {
+      console.warn(`⚠️ Expected to delete sitter bookings but none matched. Check sitterId data formats.`);
+    }
 
     // If user is a client, delete all associated pets and their data
     if (user.role === 'client') {
@@ -533,12 +575,13 @@ export class UsersService {
     console.log(`✅ Successfully deleted ${userRole}: ${userName} (ID: ${userId})`);
 
     return {
-      message: `${userRole.charAt(0).toUpperCase() + userRole.slice(1)} "${userName}" has been successfully removed from the system`,
+      message: `${userRole.charAt(0).toUpperCase() + userRole.slice(1)} "${userName}" and all associated data (${totalBookingsDeleted} bookings) have been successfully removed from the system`,
       deletedUser: {
         id: userId,
         name: userName,
         email: user.email,
         role: userRole,
+        bookingsDeleted: totalBookingsDeleted,
       }
     };
   }
