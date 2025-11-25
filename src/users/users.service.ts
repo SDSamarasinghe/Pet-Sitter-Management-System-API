@@ -485,6 +485,15 @@ export class UsersService {
   }
 
   /**
+   * Update firstTimeLogin flag to false after first login
+   */
+  async updateFirstTimeLogin(userId: string): Promise<void> {
+    await this.userModel.findByIdAndUpdate(userId, {
+      firstTimeLogin: false,
+    });
+  }
+
+  /**
    * Delete user (Admin only)
    * Removes user and all associated data (pets, pet care, pet medical)
    */
