@@ -29,10 +29,10 @@ export class BookingsService {
   /**
    * Send notifications for pending bookings (Step 1)
    */
-  private async sendPendingBookingNotifications(booking: any): Promise<void> {
+  private async sendPendingBookingNotifications(booking: any, rangeStartDate?: Date, rangeEndDate?: Date): Promise<void> {
     try {
       const client = booking.userId;
-      await this.emailService.sendPendingBookingEmails(booking, client);
+      await this.emailService.sendPendingBookingEmails(booking, client, rangeStartDate, rangeEndDate);
       console.log(`Pending booking email notifications sent for booking ${booking._id}`);
     } catch (error) {
       console.error('Error sending pending booking notifications:', error);
@@ -42,7 +42,7 @@ export class BookingsService {
   /**
    * Send email notification when sitter is assigned to existing booking
    */
-  private async sendSitterAssignmentNotification(booking: BookingDocument): Promise<void> {
+  private async sendSitterAssignmentNotification(booking: BookingDocument, rangeStartDate?: Date, rangeEndDate?: Date): Promise<void> {
     try {
       // Get client and sitter information
       const client = await this.userModel.findById(booking.userId).exec();
@@ -54,12 +54,25 @@ export class BookingsService {
       }
 
       // Send email notification to the assigned sitter
-      await this.emailService.sendSitterAssignmentEmail(booking, client, sitter);
+      await this.emailService.sendSitterAssignmentEmail(booking, client, sitter, rangeStartDate, rangeEndDate);
 
       console.log(`✅ Sitter assignment notification sent for booking ${booking._id}`);
     } catch (error) {
       console.error('Failed to send sitter assignment notification:', error);
       // Don't throw error - email failure shouldn't break booking assignment
+    }
+  }
+
+  /**
+   * Send service inquiry notification emails (CLIENT + ADMIN)
+   */
+  private async sendServiceInquiryNotifications(booking: any, rangeStartDate?: Date, rangeEndDate?: Date): Promise<void> {
+    try {
+      const client = booking.userId;
+      await this.emailService.sendServiceInquiryEmails(booking, client, rangeStartDate, rangeEndDate);
+      console.log(`Service inquiry notification emails sent for inquiry ${booking._id}`);
+    } catch (error) {
+      console.error('Error sending service inquiry notifications:', error);
     }
   }
 
@@ -235,10 +248,10 @@ export class BookingsService {
       .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
       .exec();
 
-    // Send email notifications for service inquiry (only once for the entire range)
+    // Send SERVICE INQUIRY email notifications (separate from booking emails)
     if (firstBooking) {
       console.log(`📧 Sending service inquiry notification emails...`);
-      await this.sendPendingBookingNotifications(firstBooking);
+      await this.sendServiceInquiryNotifications(firstBooking, startDate, endDate);
     }
 
     return {
@@ -311,7 +324,13 @@ export class BookingsService {
         .exec();
 
       if (populatedBooking) {
-        await this.sendPendingBookingNotifications(populatedBooking);
+        // Pass the original date range for multi-day bookings
+        await this.sendPendingBookingNotifications(populatedBooking, startDate, endDate);
+        
+        // If sitter is already assigned, send sitter assignment notification
+        if (populatedBooking.sitterId) {
+          await this.sendSitterAssignmentNotification(populatedBooking, startDate, endDate);
+        }
       }
     }
     
@@ -387,7 +406,13 @@ export class BookingsService {
         .exec();
 
       if (populatedBooking) {
-        await this.sendPendingBookingNotifications(populatedBooking);
+        // Pass the original date range for multi-day bookings
+        await this.sendPendingBookingNotifications(populatedBooking, startDate, endDate);
+        
+        // If sitter is already assigned, send sitter assignment notification
+        if (populatedBooking.sitterId) {
+          await this.sendSitterAssignmentNotification(populatedBooking, startDate, endDate);
+        }
       }
     }
     
