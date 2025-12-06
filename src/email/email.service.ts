@@ -3,24 +3,73 @@ import { MailerService } from '@nestjs-modules/mailer';
 
 @Injectable()
 export class EmailService {
+  private readonly APP_TIMEZONE = 'America/Toronto';
+
   constructor(private mailerService: MailerService) {}
+
+  /**
+   * Format date to local timezone with proper locale
+   */
+  private formatDateInTimezone(date: Date, timezone: string = this.APP_TIMEZONE): string {
+    const options: Intl.DateTimeFormatOptions = { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric', 
+      timeZone: timezone 
+    };
+    return date.toLocaleDateString('en-US', options);
+  }
+
+  /**
+   * Format time to local timezone
+   */
+  private formatTimeInTimezone(date: Date, timezone: string = this.APP_TIMEZONE): string {
+    const options: Intl.DateTimeFormatOptions = { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit',
+      hour12: true,
+      timeZone: timezone 
+    };
+    return date.toLocaleTimeString('en-US', options);
+  }
 
   /**
    * 📧 STEP 1: Send pending booking emails (Client + Admin)
    */
-  async sendPendingBookingEmails(booking: any, client: any): Promise<void> {
+  async sendPendingBookingEmails(booking: any, client: any, rangeStartDate?: Date, rangeEndDate?: Date): Promise<void> {
     try {
       console.log(`📧 Sending pending booking emails for booking ${booking._id}`);
       
       // Send to client
-      await this.sendClientPendingBookingEmail(booking, client);
+      await this.sendClientPendingBookingEmail(booking, client, rangeStartDate, rangeEndDate);
       
       // Send to admin
-      await this.sendAdminPendingBookingEmail(booking, client);
+      await this.sendAdminPendingBookingEmail(booking, client, rangeStartDate, rangeEndDate);
       
       console.log(`✅ Pending booking emails sent successfully for booking ${booking._id}`);
     } catch (error) {
       console.error(`❌ Failed to send pending booking emails for booking ${booking._id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 📧 Send service inquiry emails (Client + Admin) - DIFFERENT FROM BOOKING
+   */
+  async sendServiceInquiryEmails(booking: any, client: any, rangeStartDate?: Date, rangeEndDate?: Date): Promise<void> {
+    try {
+      console.log(`📧 Sending service inquiry emails for inquiry ${booking._id}`);
+      
+      // Send to client
+      await this.sendClientServiceInquiryEmail(booking, client, rangeStartDate, rangeEndDate);
+      
+      // Send to admin
+      await this.sendAdminServiceInquiryEmail(booking, client, rangeStartDate, rangeEndDate);
+      
+      console.log(`✅ Service inquiry emails sent successfully for inquiry ${booking._id}`);
+    } catch (error) {
+      console.error(`❌ Failed to send service inquiry emails for inquiry ${booking._id}:`, error);
       throw error;
     }
   }
@@ -73,11 +122,11 @@ export class EmailService {
   /**
    * 📧 Send sitter assignment notification
    */
-  async sendSitterAssignmentEmail(booking: any, client: any, sitter: any): Promise<void> {
+  async sendSitterAssignmentEmail(booking: any, client: any, sitter: any, rangeStartDate?: Date, rangeEndDate?: Date): Promise<void> {
     try {
       console.log(`📧 Sending sitter assignment email for booking ${booking._id}`);
       
-      await this.sendSitterAssignedNotificationEmail(booking, client, sitter);
+      await this.sendSitterAssignedNotificationEmail(booking, client, sitter, rangeStartDate, rangeEndDate);
       
       console.log(`✅ Sitter assignment email sent successfully for booking ${booking._id}`);
     } catch (error) {
@@ -93,11 +142,12 @@ export class EmailService {
   /**
    * Client: Pending booking confirmation
    */
-  private async sendClientPendingBookingEmail(booking: any, client: any): Promise<void> {
-    const startDate = new Date(booking.startDate).toLocaleDateString();
-    const endDate = new Date(booking.endDate).toLocaleDateString();
-    const startTime = new Date(booking.startDate).toLocaleTimeString();
-    const endTime = new Date(booking.endDate).toLocaleTimeString();
+  private async sendClientPendingBookingEmail(booking: any, client: any, rangeStartDate?: Date, rangeEndDate?: Date): Promise<void> {
+    // Use the range dates if provided (for multi-day bookings), otherwise use individual booking dates
+    const displayStartDate = rangeStartDate ? this.formatDateInTimezone(rangeStartDate) : this.formatDateInTimezone(new Date(booking.startDate));
+    const displayEndDate = rangeEndDate ? this.formatDateInTimezone(rangeEndDate) : this.formatDateInTimezone(new Date(booking.endDate));
+    const startTime = this.formatTimeInTimezone(new Date(booking.startDate));
+    const endTime = this.formatTimeInTimezone(new Date(booking.endDate));
 
     await this.mailerService.sendMail({
       to: client.email,
@@ -213,7 +263,7 @@ export class EmailService {
                 
                 <div class="booking-details">
                   <h3>📋 Your Booking Details</h3>
-                  <p><strong>Service Dates:</strong> <span class="highlight-text">${startDate} to ${endDate}</span></p>
+                  <p><strong>Service Dates:</strong> <span class="highlight-text">${displayStartDate} to ${displayEndDate}</span></p>
                   <p><strong>Service Times:</strong> ${startTime} - ${endTime}</p>
                   <p><strong>Service Type:</strong> ${booking.serviceType}</p>
                   <p><strong>Number of Pets:</strong> ${booking.numberOfPets}</p>
@@ -225,18 +275,25 @@ export class EmailService {
                   ${booking.clientNotes ? `<p><strong>Additional Notes:</strong> ${booking.clientNotes}</p>` : ''}
                 </div>
 
-                <div class="info-box" style="background-color: #FFF3CD; border-left: 4px solid #FFC107;">
-                  <h4 style="color: #856404;">💰 Pricing Information</h4>
-                  <p style="color: #856404;"><strong>Final pricing will be calculated and confirmed based on your specific requirements.</strong></p>
-                  <p style="color: #856404;">Our team will review your inquiry and provide you with an accurate quote shortly.</p>
+                <div class="info-box" style="background-color: #E8F5E9; border-left: 4px solid #4CAF50;">
+                  <h4 style="color: #2E7D32;">💳 Payment Instructions</h4>
+                  <p style="color: #2C3E50;"><strong>Payment Method: Interac e-Transfer</strong></p>
+                  <p style="color: #2C3E50;">Please send your payment to:</p>
+                  <div style="background-color: #F5F5F5; padding: 15px; border-radius: 6px; margin: 15px 0;">
+                    <p style="margin: 5px 0; color: #1A2A6C;"><strong>Email:</strong> ${'pets@whiskarz.com'}</p>
+                    <p style="margin: 5px 0; color: #2C3E50;"><strong>Amount:</strong> $${booking.totalAmount ? booking.totalAmount.toFixed(2) : 'TBD'} CAD</p>
+                    <p style="margin: 5px 0; color: #2C3E50;"><strong>Reference:</strong> ${booking._id}</p>
+                  </div>
+                  <p style="color: #666; font-size: 14px;"><em>Note: Please include your booking reference number in the e-transfer message.</em></p>
+                  <p style="color: #666; font-size: 14px;"><em>Payment confirms your booking and ensures your spot is reserved.</em></p>
                 </div>
 
                 <div class="info-box">
                   <h4>🔔 What happens next?</h4>
                   <ul>
                     <li><strong>Review:</strong> Our team will review your booking request within 24 hours</li>
-                    <li><strong>Confirmation:</strong> You'll receive an email once your booking is confirmed</li>
-                    <li><strong>Payment:</strong> Payment instructions will be provided upon confirmation</li>
+                    <li><strong>Payment:</strong> Send payment via e-transfer to confirm your booking</li>
+                    <li><strong>Confirmation:</strong> You'll receive an email once your payment is received and booking is confirmed</li>
                     <li><strong>Sitter Assignment:</strong> We'll assign the best available sitter for your pets</li>
                   </ul>
                 </div>
@@ -426,22 +483,291 @@ export class EmailService {
   }
 
   // ===========================
+  // SERVICE INQUIRY EMAIL TEMPLATES (DIFFERENT FROM BOOKINGS)
+  // ===========================
+
+  /**
+   * Client: Service inquiry received confirmation
+   */
+  private async sendClientServiceInquiryEmail(booking: any, client: any, rangeStartDate?: Date, rangeEndDate?: Date): Promise<void> {
+    const displayStartDate = rangeStartDate ? this.formatDateInTimezone(rangeStartDate) : this.formatDateInTimezone(new Date(booking.startDate));
+    const displayEndDate = rangeEndDate ? this.formatDateInTimezone(rangeEndDate) : this.formatDateInTimezone(new Date(booking.endDate));
+    const startTime = this.formatTimeInTimezone(new Date(booking.startDate));
+    const endTime = this.formatTimeInTimezone(new Date(booking.endDate));
+
+    await this.mailerService.sendMail({
+      to: client.email,
+      subject: '📋 Service Inquiry Received - Whiskarz Pet-Sitting',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Service Inquiry Received</title>
+          <style>
+            body { 
+              font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif;
+              line-height: 1.6; 
+              color: #2C3E50; 
+              margin: 0;
+              padding: 0;
+              background-color: #F5F7FA;
+            }
+            .email-wrapper { padding: 40px 20px; }
+            .container { 
+              max-width: 650px; 
+              margin: 0 auto; 
+              background-color: #ffffff;
+              border-radius: 12px;
+              overflow: hidden;
+              box-shadow: 0 4px 15px rgba(26, 42, 108, 0.1);
+            }
+            .header { 
+              background: linear-gradient(135deg, #16A34A 0%, #15803D 100%);
+              color: white; 
+              padding: 40px 30px; 
+              text-align: center;
+            }
+            .header h1 {
+              margin: 0 0 10px 0;
+              font-size: 28px;
+              font-weight: 700;
+              color: white;
+            }
+            .header p {
+              margin: 0;
+              font-size: 16px;
+              opacity: 0.95;
+            }
+            .logo-badge { font-size: 48px; margin-bottom: 15px; }
+            .content { padding: 40px 30px; background-color: #ffffff; }
+            .status-badge {
+              display: inline-block;
+              background-color: #16A34A;
+              color: white;
+              padding: 10px 25px;
+              border-radius: 25px;
+              font-weight: 700;
+              margin: 15px 0;
+              font-size: 15px;
+            }
+            .inquiry-details {
+              background-color: #F5F7FA;
+              border: 2px solid #16A34A;
+              border-radius: 10px;
+              padding: 25px;
+              margin: 25px 0;
+            }
+            .inquiry-details h3 {
+              margin-top: 0;
+              color: #15803D;
+              font-size: 18px;
+              font-weight: 700;
+            }
+            .inquiry-details p {
+              margin: 10px 0;
+              color: #2C3E50;
+            }
+            .info-box {
+              background-color: #F5F7FA;
+              padding: 20px;
+              margin: 20px 0;
+              border-radius: 8px;
+              border-left: 4px solid #16A34A;
+            }
+            .info-box h4 { margin-top: 0; color: #15803D; }
+            .info-box ul { color: #2C3E50; }
+            .footer { 
+              background-color: #2C3E50;
+              padding: 30px; 
+              text-align: center; 
+              font-size: 14px;
+              color: #F5F7FA;
+            }
+            .footer p { margin: 8px 0; color: #F5F7FA; }
+            .footer a { color: #16A34A; text-decoration: none; font-weight: 600; }
+            .highlight-text {
+              background-color: #16A34A;
+              color: white;
+              padding: 3px 8px;
+              border-radius: 4px;
+              font-weight: 700;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="email-wrapper">
+            <div class="container">
+              <div class="header">
+                <div class="logo-badge">📋</div>
+                <h1>Thank You for Your Inquiry!</h1>
+                <p>We've received your service inquiry</p>
+              </div>
+              <div class="content">
+                <p style="font-size: 16px; color: #2C3E50;">Dear <strong style="color: #15803D;">${client.firstName} ${client.lastName}</strong>,</p>
+                <p style="color: #2C3E50;">Thank you for reaching out to Whiskarz Pet-Sitting! We've received your service inquiry and our team is excited to learn more about your pet care needs.</p>
+                
+                <div class="inquiry-details">
+                  <h3>📋 Your Inquiry Details</h3>
+                  <p><strong>Service Requested For:</strong> <span class="highlight-text">${displayStartDate} to ${displayEndDate}</span></p>
+                  <p><strong>Time Requested:</strong> ${startTime} - ${endTime}</p>
+                  <p><strong>Service Type:</strong> ${booking.serviceType}</p>
+                  <p><strong>Number of Pets:</strong> ${booking.numberOfPets}</p>
+                  <p><strong>Pet Types:</strong> ${booking.petTypes?.join(', ')}</p>
+                  <p><strong>Inquiry Reference:</strong> ${booking._id}</p>
+                  
+                  ${booking.notes ? `<p><strong>Your Details:</strong> ${booking.notes}</p>` : ''}
+                  ${booking.specialInstructions ? `<p><strong>Special Requests:</strong> ${booking.specialInstructions}</p>` : ''}
+                </div>
+
+                <div class="info-box" style="background-color: #DCFCE7; border-left: 4px solid #16A34A;">
+                  <h4 style="color: #15803D;">✅ Next Steps</h4>
+                  <ul>
+                    <li><strong>Review:</strong> Our team will carefully review your inquiry within 24 hours</li>
+                    <li><strong>Contact:</strong> We'll reach out with personalized recommendations</li>
+                    <li><strong>Quote:</strong> You'll receive a detailed pricing quote for your service</li>
+                    <li><strong>Booking:</strong> Once approved, we'll set up your pet-sitting arrangement</li>
+                  </ul>
+                </div>
+
+                <div class="info-box">
+                  <h4>🐾 Why Choose Whiskarz?</h4>
+                  <ul>
+                    <li>Professional and caring pet sitters</li>
+                    <li>Personalized care for your beloved pets</li>
+                    <li>Regular photo updates during service</li>
+                    <li>Transparent pricing with no hidden fees</li>
+                    <li>24/7 support from our dedicated team</li>
+                  </ul>
+                </div>
+
+                <div style="text-align: center; margin: 30px 0;">
+                  <p style="color: #2C3E50;"><strong>Have any questions?</strong></p>
+                  <p style="color: #2C3E50;">Contact us at: <a href="mailto:${process.env.ADMIN_EMAIL || 'admin@whiskarz.com'}" style="color: #16A34A; text-decoration: none; font-weight: 600;">${process.env.ADMIN_EMAIL || 'admin@whiskarz.com'}</a></p>
+                </div>
+              </div>
+              <div class="footer">
+                <p style="font-size: 16px; font-weight: 700; color: #16A34A; margin-bottom: 15px;">🐾 Whiskarz Pet-Sitting 🐾</p>
+                <p>Looking forward to caring for your pets!</p>
+                <p style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #444; font-size: 12px;">
+                  This is an automated message from Whiskarz Pet-Sitting. Please do not reply to this email.
+                </p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    });
+  }
+
+  /**
+   * Admin: Service inquiry received notification
+   */
+  private async sendAdminServiceInquiryEmail(booking: any, client: any, rangeStartDate?: Date, rangeEndDate?: Date): Promise<void> {
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@whiskarz.com';
+    const displayStartDate = rangeStartDate ? this.formatDateInTimezone(rangeStartDate) : this.formatDateInTimezone(new Date(booking.startDate));
+    const displayEndDate = rangeEndDate ? this.formatDateInTimezone(rangeEndDate) : this.formatDateInTimezone(new Date(booking.endDate));
+    const startTime = this.formatTimeInTimezone(new Date(booking.startDate));
+    const endTime = this.formatTimeInTimezone(new Date(booking.endTime));
+
+    await this.mailerService.sendMail({
+      to: adminEmail,
+      subject: `📋 NEW SERVICE INQUIRY: ${client.firstName} ${client.lastName} - ${displayStartDate}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>New Service Inquiry</title>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 700px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #16A34A; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { padding: 30px; background-color: #f9f9f9; }
+            .inquiry-details { background-color: white; padding: 20px; margin: 15px 0; border-radius: 8px; border-left: 4px solid #16A34A; }
+            .client-info { background-color: #E7F5EA; padding: 20px; border-radius: 8px; margin: 15px 0; }
+            .action-needed { background-color: #FFF3E0; padding: 20px; border-radius: 8px; margin: 20px 0; border: 2px solid #FF9800; }
+            .footer { text-align: center; padding: 20px; color: #666; font-size: 14px; }
+            .highlight { background-color: #E7F5EA; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>📋 New Service Inquiry!</h1>
+              <p>A potential customer has submitted a service inquiry</p>
+            </div>
+            <div class="content">
+              <p>Admin Team,</p>
+              <p><strong>${client.firstName} ${client.lastName}</strong> has submitted a new service inquiry that requires your attention.</p>
+              
+              <div class="inquiry-details">
+                <h3>📋 Inquiry Information</h3>
+                <p><strong>Service Requested For:</strong> <span class="highlight">${displayStartDate} to ${displayEndDate}</span></p>
+                <p><strong>Time Requested:</strong> ${startTime} - ${endTime}</p>
+                <p><strong>Service Type:</strong> ${booking.serviceType}</p>
+                <p><strong>Number of Pets:</strong> ${booking.numberOfPets}</p>
+                <p><strong>Pet Types:</strong> ${booking.petTypes?.join(', ')}</p>
+                <p><strong>Inquiry Reference:</strong> ${booking._id}</p>
+              </div>
+
+              <div class="client-info">
+                <h3>👤 Client Information</h3>
+                <p><strong>Name:</strong> ${client.firstName} ${client.lastName}</p>
+                <p><strong>Email:</strong> ${client.email}</p>
+                <p><strong>Phone:</strong> ${client.phoneNumber || 'Not provided'}</p>
+                <p><strong>Address:</strong> ${booking.serviceAddress || client.address || 'Not provided'}</p>
+              </div>
+
+              <div class="action-needed">
+                <h4>⚠️ ACTION REQUIRED</h4>
+                <ul>
+                  <li><strong>Review Inquiry:</strong> Check the client's service requirements and availability</li>
+                  <li><strong>Check Sitter Availability:</strong> Verify if you have sitters available for the requested dates</li>
+                  <li><strong>Contact Client:</strong> Follow up with the client within 24 hours with a quote and sitter recommendation</li>
+                  <li><strong>Create Booking:</strong> Once approved, create the booking with assigned sitter</li>
+                </ul>
+              </div>
+
+              <div style="background-color: #F5F5F5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h4>📝 Client Notes:</h4>
+                <p>${booking.notes || booking.specialInstructions || 'No additional notes provided'}</p>
+              </div>
+
+              <div style="text-align: center; margin: 30px 0;">
+                <p><a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard?tab=bookings" style="background-color: #16A34A; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: 600;">View in Dashboard</a></p>
+              </div>
+            </div>
+            <div class="footer">
+              <p><strong>Whiskarz Pet-Sitting Admin</strong></p>
+              <p>This is an automated notification for service inquiries.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    });
+  }
+
+  // ===========================
   // ADMIN EMAIL TEMPLATES
   // ===========================
 
   /**
    * Admin: New pending booking notification
    */
-  private async sendAdminPendingBookingEmail(booking: any, client: any): Promise<void> {
+  private async sendAdminPendingBookingEmail(booking: any, client: any, rangeStartDate?: Date, rangeEndDate?: Date): Promise<void> {
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@flyingduchess.com';
-    const startDate = new Date(booking.startDate).toLocaleDateString();
-    const endDate = new Date(booking.endDate).toLocaleDateString();
-    const startTime = new Date(booking.startDate).toLocaleTimeString();
-    const endTime = new Date(booking.endDate).toLocaleTimeString();
+    // Use the range dates if provided (for multi-day bookings), otherwise use individual booking dates
+    const displayStartDate = rangeStartDate ? this.formatDateInTimezone(rangeStartDate) : this.formatDateInTimezone(new Date(booking.startDate));
+    const displayEndDate = rangeEndDate ? this.formatDateInTimezone(rangeEndDate) : this.formatDateInTimezone(new Date(booking.endDate));
+    const startTime = this.formatTimeInTimezone(new Date(booking.startDate));
+    const endTime = this.formatTimeInTimezone(new Date(booking.endDate));
 
     await this.mailerService.sendMail({
       to: adminEmail,
-      subject: `⏳ NEW BOOKING PENDING: ${client.firstName} ${client.lastName} - ${startDate}`,
+      subject: `⏳ NEW BOOKING PENDING: ${client.firstName} ${client.lastName} - ${displayStartDate}`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -471,7 +797,7 @@ export class EmailService {
               
               <div class="booking-details">
                 <h3>📋 Booking Information</h3>
-                <p><strong>Service Dates:</strong> <span class="highlight">${startDate} to ${endDate}</span></p>
+                <p><strong>Service Dates:</strong> <span class="highlight">${displayStartDate} to ${displayEndDate}</span></p>
                 <p><strong>Service Times:</strong> ${startTime} - ${endTime}</p>
                 <p><strong>Service Type:</strong> ${booking.serviceType}</p>
                 <p><strong>Number of Pets:</strong> ${booking.numberOfPets}</p>
@@ -768,11 +1094,12 @@ export class EmailService {
   /**
    * Sitter: Booking assignment notification (WITHOUT PRICING)
    */
-  private async sendSitterAssignedNotificationEmail(booking: any, client: any, sitter: any): Promise<void> {
-    const startDate = new Date(booking.startDate).toLocaleDateString();
-    const endDate = new Date(booking.endDate).toLocaleDateString();
-    const startTime = new Date(booking.startDate).toLocaleTimeString();
-    const endTime = new Date(booking.endDate).toLocaleTimeString();
+  private async sendSitterAssignedNotificationEmail(booking: any, client: any, sitter: any, rangeStartDate?: Date, rangeEndDate?: Date): Promise<void> {
+    // Use the range dates if provided (for multi-day bookings), otherwise use individual booking dates
+    const displayStartDate = rangeStartDate ? this.formatDateInTimezone(rangeStartDate) : this.formatDateInTimezone(new Date(booking.startDate));
+    const displayEndDate = rangeEndDate ? this.formatDateInTimezone(rangeEndDate) : this.formatDateInTimezone(new Date(booking.endDate));
+    const startTime = this.formatTimeInTimezone(new Date(booking.startDate));
+    const endTime = this.formatTimeInTimezone(new Date(booking.endDate));
 
     await this.mailerService.sendMail({
       to: sitter.email,
@@ -932,8 +1259,8 @@ export class EmailService {
                   <h3>📅 Booking Information</h3>
                   <p><strong>Booking ID:</strong> ${booking._id}</p>
                   <p><strong>Service Type:</strong> ${booking.serviceType || 'Pet-Sitting Service'}</p>
-                  <p><strong>Start Date:</strong> ${startDate} at ${startTime}</p>
-                  <p><strong>End Date:</strong> ${endDate} at ${endTime}</p>
+                  <p><strong>Service Dates:</strong> ${displayStartDate} to ${displayEndDate}</p>
+                  <p><strong>Service Times:</strong> ${startTime} - ${endTime}</p>
                   <p><strong>Number of Pets:</strong> ${booking.numberOfPets || 'Not specified'}</p>
                   ${booking.petTypes && booking.petTypes.length > 0 ? `<p><strong>Pet Types:</strong> ${booking.petTypes.join(', ')}</p>` : ''}
                   ${booking.serviceAddress ? `<p><strong>Service Address:</strong> ${booking.serviceAddress}</p>` : ''}
