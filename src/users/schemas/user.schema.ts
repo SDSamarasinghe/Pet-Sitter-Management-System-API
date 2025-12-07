@@ -204,6 +204,9 @@ export class User {
 
   @Prop({ default: Date.now })
   updatedAt: Date;
+
+  @Prop({ default: 'not complete' })
+  formStatus: string; // Track form completion status
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

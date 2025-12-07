@@ -40,10 +40,31 @@ export class UsersService {
    * Returns all users with role 'client' regardless of status
    */
   async findAllClients(): Promise<UserDocument[]> {
-    return this.userModel
+    const clients = await this.userModel
       .find({ role: 'client' })
-      .select('-password') // Exclude password from results
+      .select('-password')
       .exec();
+
+    for (const client of clients) {
+      const requiredFieldsFilled = Boolean(
+        client.firstName &&
+        client.lastName &&
+        client.address &&
+        client.emergencyContact &&
+        client.homeCareInfo &&
+        client.keyHandlingMethod
+      );
+
+
+      // Check at least one pet
+      const pets = await this.petModel.find({ userId: client._id }).exec();
+      const hasPet = pets.length > 0;
+
+      // Set formStatus: "form complete" only if all required fields AND at least 1 pet
+      (client as any).formStatus = (requiredFieldsFilled && hasPet) ? 'form complete' : 'not complete';
+      await client.save();
+    }
+    return clients;
   }
 
   async findAllClientsWithPets(): Promise<UserDocument[]> {

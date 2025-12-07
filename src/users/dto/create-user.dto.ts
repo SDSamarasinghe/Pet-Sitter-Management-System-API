@@ -152,4 +152,8 @@ export class CreateUserDto {
   @IsEnum(['new', 'existing'])
   @IsOptional()
   customerType?: string;
+
+  @IsString()
+  @IsOptional()
+  formStatus?: string;
 }
