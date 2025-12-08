@@ -606,4 +606,38 @@ export class UsersService {
       }
     };
   }
+
+  /**
+   * Assign a default sitter to a client (Admin only)
+   * Updates the client's assignedSitterId field
+   */
+  async assignSitterToClient(clientId: string, sitterId: string): Promise<UserDocument> {
+    // Find and update the client
+    const client = await this.userModel.findById(clientId);
+    
+    if (!client) {
+      throw new NotFoundException('Client not found');
+    }
+
+    if (client.role !== 'client') {
+      throw new BadRequestException('User is not a client');
+    }
+
+    // Verify sitter exists and is a sitter
+    const sitter = await this.userModel.findById(sitterId);
+    
+    if (!sitter) {
+      throw new NotFoundException('Sitter not found');
+    }
+
+    if (sitter.role !== 'sitter') {
+      throw new BadRequestException('User is not a sitter');
+    }
+
+    // Update client's assigned sitter
+    client.assignedSitterId = sitterId;
+    await client.save();
+
+    return client;
+  }
 }
