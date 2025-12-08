@@ -378,4 +378,38 @@ export class UsersController {
 
     return this.usersService.deleteUser(id);
   }
+
+  /**
+   * PUT /users/:id/assign-sitter - Assign a default sitter to a client (admin only)
+   * Protected: Only admins can assign sitters to clients
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Put(':id/assign-sitter')
+  async assignSitterToClient(
+    @Param('id') clientId: string,
+    @Body('sitterId') sitterId: string
+  ) {
+    // Validate ObjectId formats
+    if (!this.isValidObjectId(clientId)) {
+      throw new BadRequestException('Invalid client ID format');
+    }
+    if (!this.isValidObjectId(sitterId)) {
+      throw new BadRequestException('Invalid sitter ID format');
+    }
+
+    // Verify the client is actually a client
+    const client = await this.usersService.findById(clientId);
+    if (client.role !== 'client') {
+      throw new BadRequestException('User is not a client');
+    }
+
+    // Verify the sitter is actually a sitter
+    const sitter = await this.usersService.findById(sitterId);
+    if (sitter.role !== 'sitter') {
+      throw new BadRequestException('User is not a sitter');
+    }
+
+    return this.usersService.assignSitterToClient(clientId, sitterId);
+  }
 }
