@@ -207,6 +207,9 @@ export class User {
 
   @Prop({ default: 'not complete' })
   formStatus: string; // Track form completion status
+
+  @Prop({ type: String, ref: 'User' })
+  assignedSitterId: string; // Default sitter assigned to this client by admin
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
