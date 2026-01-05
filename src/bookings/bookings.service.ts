@@ -119,11 +119,9 @@ export class BookingsService {
       console.log(`📋 Service inquiry from NEW customer: ${user.email}`);
     }
 
-    // Parse date range (strip any time component coming from frontend)
-    const startDate = new Date(serviceInquiryDto.startDate);
-    const endDate = new Date(serviceInquiryDto.endDate);
-    startDate.setUTCHours(0, 0, 0, 0);
-    endDate.setUTCHours(0, 0, 0, 0);
+    // Parse date range with Toronto timezone (frontend sends dates as YYYY-MM-DD which should be interpreted in Toronto time)
+    const startDate = toDate(`${serviceInquiryDto.startDate}T00:00:00`, { timeZone: 'America/Toronto' });
+    const endDate = toDate(`${serviceInquiryDto.endDate}T00:00:00`, { timeZone: 'America/Toronto' });
     
     console.log(`🔍 [DEBUG] Received dates:`, {
       startDateString: serviceInquiryDto.startDate,
