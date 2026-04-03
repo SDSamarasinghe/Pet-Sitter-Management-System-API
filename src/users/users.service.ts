@@ -8,6 +8,7 @@ import { Pet, PetDocument } from '../pets/schemas/pet.schema';
 import { PetCare, PetCareDocument } from '../pets/schemas/pet-care.schema';
 import { PetMedical, PetMedicalDocument } from '../pets/schemas/pet-medical.schema';
 import { Booking, BookingDocument } from '../bookings/schemas/booking.schema';
+import { KeySecurity, KeySecurityDocument } from '../key-security/schemas/key-security.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AzureBlobService } from '../azure-blob/azure-blob.service';
@@ -20,6 +21,7 @@ export class UsersService {
     @InjectModel(PetCare.name) private petCareModel: Model<PetCareDocument>,
     @InjectModel(PetMedical.name) private petMedicalModel: Model<PetMedicalDocument>,
     @InjectModel(Booking.name) private bookingModel: Model<BookingDocument>,
+    @InjectModel(KeySecurity.name) private keySecurityModel: Model<KeySecurityDocument>,
     private mailerService: MailerService,
     private azureBlobService: AzureBlobService,
   ) {}
@@ -46,23 +48,35 @@ export class UsersService {
       .exec();
 
     for (const client of clients) {
-      const requiredFieldsFilled = Boolean(
+      // Check all required profile fields
+      const requiredProfileFields = Boolean(
         client.firstName &&
         client.lastName &&
+        client.cellPhoneNumber &&
+        client.homePhoneNumber &&
         client.address &&
-        client.emergencyContact &&
-        client.homeCareInfo &&
-        client.keyHandlingMethod
+        client.zipCode &&
+        client.emergencyContactFirstName &&
+        client.emergencyContactLastName &&
+        client.emergencyContactCellPhone &&
+        client.keyHandlingMethod &&
+        client.parkingForSitter &&
+        client.videoSurveillance &&
+        client.outOfBoundAreas &&
+        client.cleaningSupplyLocation &&
+        client.broomDustpanLocation
       );
 
+      // Check key security data exists (lockboxCode is required)
+      const keySecurity = await this.keySecurityModel.findOne({ clientId: client._id }).exec();
+      const hasKeySecurity = Boolean(keySecurity && keySecurity.lockboxCode);
 
       // Check at least one pet
       const pets = await this.petModel.find({ userId: client._id }).exec();
       const hasPet = pets.length > 0;
 
-      // Set formStatus: "form complete" only if all required fields AND at least 1 pet
-      (client as any).formStatus = (requiredFieldsFilled && hasPet) ? 'form complete' : 'not complete';
-      await client.save();
+      // Set formStatus dynamically (not saved to DB)
+      (client as any).formStatus = (requiredProfileFields && hasKeySecurity && hasPet) ? 'form complete' : 'not complete';
     }
     return clients;
   }
@@ -170,6 +184,40 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
+    
+    // Dynamically compute formStatus for client users
+    if (user.role === 'client') {
+      // Check all required profile fields
+      const requiredProfileFields = Boolean(
+        user.firstName &&
+        user.lastName &&
+        user.cellPhoneNumber &&
+        user.homePhoneNumber &&
+        user.address &&
+        user.zipCode &&
+        user.emergencyContactFirstName &&
+        user.emergencyContactLastName &&
+        user.emergencyContactCellPhone &&
+        user.keyHandlingMethod &&
+        user.parkingForSitter &&
+        user.videoSurveillance &&
+        user.outOfBoundAreas &&
+        user.cleaningSupplyLocation &&
+        user.broomDustpanLocation
+      );
+
+      // Check key security data exists (lockboxCode is required)
+      const keySecurity = await this.keySecurityModel.findOne({ clientId: user._id }).exec();
+      const hasKeySecurity = Boolean(keySecurity && keySecurity.lockboxCode);
+
+      // Check at least one pet
+      const pets = await this.petModel.find({ userId: user._id }).exec();
+      const hasPet = pets.length > 0;
+
+      // Set formStatus dynamically - all three conditions must be met
+      (user as any).formStatus = (requiredProfileFields && hasKeySecurity && hasPet) ? 'form complete' : 'not complete';
+    }
+    
     return user;
   }
 
@@ -217,7 +265,8 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
     
-    return updatedUser;
+    // Return user with dynamically computed formStatus
+    return this.findById(id);
   }
 
   /**
