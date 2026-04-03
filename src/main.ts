@@ -1,11 +1,16 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { json, urlencoded } from 'express';
 
 async function bootstrap() {
   process.env.TZ = 'UTC';
   
   const app = await NestFactory.create(AppModule);
+  
+  // Increase body size limit for file uploads (10MB)
+  app.use(json({ limit: '10mb' }));
+  app.use(urlencoded({ limit: '10mb', extended: true }));
   
   // Enable CORS for frontend integration
   app.enableCors({

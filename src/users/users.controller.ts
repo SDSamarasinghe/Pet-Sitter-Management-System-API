@@ -195,10 +195,21 @@ export class UsersController {
   /**
    * POST /users/profile/picture - Upload profile picture
    * Protected: Update the authenticated user's profile picture
+   * Max file size: 5MB
    */
   @UseGuards(JwtAuthGuard)
   @Post('profile/picture')
-  @UseInterceptors(FileInterceptor('profilePicture'))
+  @UseInterceptors(FileInterceptor('profilePicture', {
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5MB limit
+    },
+    fileFilter: (req, file, callback) => {
+      if (!file.mimetype.match(/^image\/(jpeg|png|gif|webp)$/)) {
+        return callback(new BadRequestException('Only image files are allowed (JPEG, PNG, GIF, WebP)'), false);
+      }
+      callback(null, true);
+    },
+  }))
   async uploadProfilePicture(
     @UploadedFile() file: Express.Multer.File,
     @Request() req
