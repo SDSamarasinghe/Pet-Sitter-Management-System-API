@@ -1042,7 +1042,6 @@ export class EmailService {
                 <p><strong>Number of Pets:</strong> ${booking.numberOfPets}</p>
                 <p><strong>Pet Types:</strong> ${booking.petTypes?.join(', ')}</p>
                 <p><strong>Service Address:</strong> ${booking.serviceAddress || client.address}</p>
-                <p><strong>Payment:</strong> <span class="amount">$${booking.totalAmount} ✅ CONFIRMED</span></p>
                 
                 ${booking.specialInstructions ? `
                 <h4>⚠️ Special Instructions:</h4>
@@ -1082,6 +1081,7 @@ export class EmailService {
             </div>
             <div class="footer">
               <p><strong>Whiskarz Pet-Sitting Team</strong></p>
+              <p>Visit us at <a href="https://whiskarz.com/" style="color: #4CAF50; text-decoration: none;">https://whiskarz.com/</a></p>
               <p>Thank you for providing excellent pet care! 🐾❤️</p>
             </div>
           </div>
@@ -1558,7 +1558,7 @@ export class EmailService {
       console.log(`✅ [EMAIL SERVICE] Note notification email sent successfully to ${recipientEmail}`);
     } catch (error) {
       console.error(`❌ [EMAIL SERVICE] Failed to send note notification email to ${recipientEmail}:`, error);
-      console.error(`❌ [EMAIL SERVICE] Error details:`, error.message);
+      console.error("❌ [EMAIL SERVICE] Error details");
       throw error;
     }
   }
