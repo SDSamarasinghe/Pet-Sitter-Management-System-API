@@ -23,9 +23,13 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Setup SSH
+      env:
+        SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        cat > ~/.ssh/id_rsa << 'EOF'
+        $SSH_KEY
+        EOF
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.HOST_IP }} >> ~/.ssh/known_hosts
 
