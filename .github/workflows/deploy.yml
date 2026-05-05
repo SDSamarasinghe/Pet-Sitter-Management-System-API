@@ -1,115 +1,167 @@
 name: Deploy API to Azure VM
 
+permissions:
+  contents: read
+
+concurrency:
+  group: production-api-deploy
+  cancel-in-progress: true
+
 on:
   push:
-    branches: [ master, main, backend-changes ]
+    branches: [ main ]
   workflow_dispatch:
+
+env:
+  DEPLOYMENT_ENVIRONMENT: production
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Setup SSH
       run: |
         mkdir -p ~/.ssh
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.HOST_IP }} >> ~/.ssh/known_hosts
-        
-    - name: Deploy to Azure VM
+
+    - name: Deploy API to Azure VM
+      env:
+        MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+        AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+        MAIL_PASS: ${{ secrets.MAIL_PASS }}
       run: |
         ssh -i ~/.ssh/id_rsa azureuser@${{ secrets.HOST_IP }} << 'EOF'
           set -e
           
-          echo "🔄 Starting API deployment..."
-          
-          # Navigate to home directory
-          cd ~
-          
-          # Update API repository
-          echo "📥 Updating API repository..."
-          if [ -d "Pet-Sitter-Management-System-API" ]; then
-            cd Pet-Sitter-Management-System-API
-            git pull origin master || {
-              echo "⚠️ Git pull failed, trying to reset..."
-              git reset --hard HEAD
-              git pull origin master
-            }
-            cd ..
-          else
-            echo "📥 Cloning API repository..."
-            git clone https://github.com/SDSamarasinghe/Pet-Sitter-Management-System-API.git
-          fi
-          
-          # Create/update docker-compose.yml
-          echo "📝 Creating docker-compose.yml..."
-          cat > docker-compose.yml << 'COMPOSE_EOF'
-version: '3.8'
+          echo "========================================="
+          echo "🚀 Starting API Auto-Deployment..."
+          echo "========================================="
 
+          # ─── Update repository ───────────────────────────────────────
+          echo "📥 Pulling latest API code..."
+          if [ -d "/var/www/Pet-Sitter-Management-System-API" ]; then
+            cd /var/www/Pet-Sitter-Management-System-API
+            git fetch origin
+            git reset --hard origin/main || git reset --hard origin/master
+          else
+            cd /var/www
+            git clone https://github.com/SDSamarasinghe/Pet-Sitter-Management-System-API.git
+            cd Pet-Sitter-Management-System-API
+          fi
+        EOF
+
+        # Write .env with secrets (outside heredoc to expand variables)
+        ssh -i ~/.ssh/id_rsa azureuser@${{ secrets.HOST_IP }} "cat > /var/www/Pet-Sitter-Management-System-API/.env << ENVEOF
+NODE_ENV=production
+PORT=8000
+MONGODB_URI=${MONGODB_URI}
+JWT_SECRET=${JWT_SECRET}
+JWT_EXPIRES_IN=24h
+CLOUDINARY_CLOUD_NAME=dnutx6czj
+CLOUDINARY_API_KEY=362787522778931
+CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
+AZURE_STORAGE_CONTAINER_NAME=pet-images
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USER=lksadish@gmail.com
+MAIL_PASS=${MAIL_PASS}
+MAIL_FROM=lksadish@gmail.com
+ENVEOF"
+
+        # Continue deployment
+        ssh -i ~/.ssh/id_rsa azureuser@${{ secrets.HOST_IP }} << 'EOF'
+          set -e
+          cd /var/www/Pet-Sitter-Management-System-API
+
+          # ─── Create docker-compose.yml ────────────────────────────────
+          echo "📝 Writing docker-compose.yml..."
+          cat > docker-compose.yml << 'COMPOSE'
 services:
   api:
     build:
-      context: ./Pet-Sitter-Management-System-API
+      context: .
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    environment:
-      - NODE_ENV=production
-      - PORT=8000
-      - MONGODB_URI=${{ secrets.MONGODB_URI }}
-      - JWT_SECRET=${{ secrets.JWT_SECRET }}
-      - JWT_EXPIRES_IN=24h
-      - CLOUDINARY_CLOUD_NAME=dnutx6czj
-      - CLOUDINARY_API_KEY=362787522778931
-      - CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
-      - AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
-      - AZURE_STORAGE_CONTAINER_NAME=pet-images
-      - MAIL_USER=lksadish@gmail.com
-      - MAIL_PASS=${{ secrets.MAIL_PASS }}
-      - MAIL_FROM=lksadish@gmail.com
-      - MAIL_HOST=smtp.gmail.com
-      - MAIL_PORT=587
+    env_file:
+      - .env
     restart: unless-stopped
-    networks:
-      - pet-sitter-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+COMPOSE
 
-networks:
-  pet-sitter-network:
-    driver: bridge
-COMPOSE_EOF
-          
-          # Stop existing containers
-          echo "🛑 Stopping existing containers..."
-          docker-compose down || true
-          
-          # Clean up old images
-          echo "🧹 Cleaning up old Docker images..."
-          docker system prune -f || true
-          
-          # Build and start containers
-          echo "🔨 Building and starting API container..."
-          docker-compose build --no-cache api
-          docker-compose up -d api
-          
-          # Wait for container to start
-          echo "⏳ Waiting for container to start..."
-          sleep 15
-          
-          # Show container status
-          echo "📊 Container status:"
-          docker-compose ps
-          
-          # Show API logs
-          echo "📋 Recent API logs:"
-          docker-compose logs api --tail=20
-          
-          echo "✅ API deployment completed!"
+          # ─── Deploy with Docker Compose ──────────────────────────────
+          echo "🧹 Cleaning up unused Docker resources..."
+          docker image prune -f 2>/dev/null || true
+
+          echo "🔨 Building API container (this may take a few minutes)..."
+          docker compose build --no-cache
+
+          echo "🚀 Starting API container..."
+          docker compose up -d --remove-orphans
+
+          # ─── Health check ────────────────────────────────────────────
+          echo "⏳ Waiting for API to become healthy..."
+          MAX_RETRIES=10
+          RETRY_COUNT=0
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health | grep -q "200\|304"; then
+              echo "✅ API is healthy!"
+              break
+            fi
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "   Attempt $RETRY_COUNT/$MAX_RETRIES - waiting..."
+            sleep 5
+          done
+
+          if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+            echo "⚠️ API health check failed after $MAX_RETRIES attempts"
+            echo "📋 Container logs:"
+            docker compose logs --tail=30
+            echo ""
+            echo "🔄 Initiating automatic rollback..."
+            git log --oneline -5
+            PREVIOUS_COMMIT=$(git log --oneline -2 | tail -n1 | awk '{print $1}')
+            echo "Rolling back to commit: $PREVIOUS_COMMIT"
+            git reset --hard "$PREVIOUS_COMMIT"
+            docker compose down --remove-orphans 2>/dev/null || true
+            docker compose build --no-cache
+            docker compose up -d
+            sleep 10
+            docker compose ps
+            exit 1
+          fi
+
+          # ─── Verify deployment ───────────────────────────────────────
+          echo ""
+          echo "========================================="
+          echo "📊 Deployment Status:"
+          echo "========================================="
+          docker compose ps
+          echo ""
+          echo "📋 Recent logs:"
+          docker compose logs --tail=10
+          echo ""
+          echo "✅ API deployment completed successfully!"
+          echo "========================================="
         EOF
-
-env:
-  HOST_IP: ${{ secrets.HOST_IP }}
-  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
