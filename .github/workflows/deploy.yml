@@ -57,17 +57,13 @@ jobs:
         printf "FRONTEND_URL=https://app.whiskarz.com/\n" >> /tmp/api.env
         scp -i ~/.ssh/id_rsa /tmp/api.env azureuser@${{ secrets.HOST_IP }}:/var/www/Pet-Sitter-Management-System-API/.env
 
-    - name: Write docker-compose.yml
-      run: |
-        printf 'services:\n  api:\n    build:\n      context: .\n      dockerfile: Dockerfile\n    ports:\n      - "8000:8000"\n    env_file:\n      - .env\n    restart: unless-stopped\n    logging:\n      driver: json-file\n      options:\n        max-size: 10m\n        max-file: "3"\n' > /tmp/api-compose.yml
-        scp -i ~/.ssh/id_rsa /tmp/api-compose.yml azureuser@${{ secrets.HOST_IP }}:/var/www/Pet-Sitter-Management-System-API/docker-compose.yml
-
     - name: Pull code and deploy
       run: |
         ssh -i ~/.ssh/id_rsa azureuser@${{ secrets.HOST_IP }} 'set -e
         cd /var/www/Pet-Sitter-Management-System-API
         git fetch origin
         git reset --hard origin/master || git reset --hard origin/main
+        printf "services:\n  api:\n    build:\n      context: .\n      dockerfile: Dockerfile\n    ports:\n      - 8000:8000\n    env_file:\n      - .env\n    restart: unless-stopped\n    logging:\n      driver: json-file\n      options:\n        max-size: 10m\n        max-file: \"3\"\n" > docker-compose.yml
         docker image prune -f 2>/dev/null || true
         docker compose build --no-cache
         docker compose up -d --remove-orphans'
