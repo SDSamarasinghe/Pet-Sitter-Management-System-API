@@ -61,26 +61,26 @@ jobs:
         EOF
 
         # Write .env locally on runner, then scp to VM
-        cat > /tmp/api.env << 'ENV_FILE'
-NODE_ENV=production
-PORT=8000
-MONGODB_URI=${MONGODB_URI}
-JWT_SECRET=${JWT_SECRET}
-JWT_EXPIRES_IN=24h
-CLOUDINARY_CLOUD_NAME=dnutx6czj
-CLOUDINARY_API_KEY=362787522778931
-CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
-AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
-AZURE_STORAGE_CONTAINER_NAME=pet-images
-MAIL_HOST=mail.spacemail.com
-MAIL_PORT=465
-SMTP_SECURE=true
-MAIL_USER=admin@whiskarz.com
-MAIL_PASS=${MAIL_PASS}
-MAIL_FROM=admin@whiskarz.com
-ADMIN_EMAIL=admin@whiskarz.com
-FRONTEND_URL=https://app.whiskarz.com/
-ENV_FILE
+        cat > /tmp/api.env <<- 'ENV_FILE'
+        NODE_ENV=production
+        PORT=8000
+        MONGODB_URI=${MONGODB_URI}
+        JWT_SECRET=${JWT_SECRET}
+        JWT_EXPIRES_IN=24h
+        CLOUDINARY_CLOUD_NAME=dnutx6czj
+        CLOUDINARY_API_KEY=362787522778931
+        CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+        AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
+        AZURE_STORAGE_CONTAINER_NAME=pet-images
+        MAIL_HOST=mail.spacemail.com
+        MAIL_PORT=465
+        SMTP_SECURE=true
+        MAIL_USER=admin@whiskarz.com
+        MAIL_PASS=${MAIL_PASS}
+        MAIL_FROM=admin@whiskarz.com
+        ADMIN_EMAIL=admin@whiskarz.com
+        FRONTEND_URL=https://app.whiskarz.com/
+        ENV_FILE
         scp -i ~/.ssh/id_rsa /tmp/api.env azureuser@${{ secrets.HOST_IP }}:/var/www/Pet-Sitter-Management-System-API/.env
 
         # Continue deployment
