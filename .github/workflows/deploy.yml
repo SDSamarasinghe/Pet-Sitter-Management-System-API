@@ -32,19 +32,40 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H "$HOST_IP" >> ~/.ssh/known_hosts
 
-    - name: Pull code and deploy
-      env:
-        MONGODB_URI: ${{ secrets.MONGODB_URI }}
-        JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
-        AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
-        MAIL_PASS: ${{ secrets.MAIL_PASS }}
+    - name: Pull code
       run: |
         ssh -i ~/.ssh/id_rsa azureuser@${{ secrets.HOST_IP }} 'set -e
         cd /var/www/Pet-Sitter-Management-System-API
         git fetch origin
-        git reset --hard origin/master || git reset --hard origin/main
-        printf "NODE_ENV=production\nPORT=8000\nMONGODB_URI=%s\nJWT_SECRET=%s\nJWT_EXPIRES_IN=24h\nCLOUDINARY_CLOUD_NAME=dnutx6czj\nCLOUDINARY_API_KEY=362787522778931\nCLOUDINARY_API_SECRET=%s\nAZURE_STORAGE_CONNECTION_STRING=%s\nAZURE_STORAGE_CONTAINER_NAME=pet-images\nMAIL_HOST=mail.spacemail.com\nMAIL_PORT=465\nSMTP_SECURE=true\nMAIL_USER=admin@whiskarz.com\nMAIL_PASS=%s\nMAIL_FROM=admin@whiskarz.com\nADMIN_EMAIL=admin@whiskarz.com\nFRONTEND_URL=https://app.whiskarz.com/\n" "$MONGODB_URI" "$JWT_SECRET" "$CLOUDINARY_API_SECRET" "$AZURE_STORAGE_CONNECTION_STRING" "$MAIL_PASS" > .env
+        git reset --hard origin/master || git reset --hard origin/main'
+
+    - name: Write .env file
+      run: |
+        ssh -i ~/.ssh/id_rsa azureuser@${{ secrets.HOST_IP }} 'cat > /var/www/Pet-Sitter-Management-System-API/.env' << 'ENVEOF'
+        NODE_ENV=production
+        PORT=8000
+        MONGODB_URI=${{ secrets.MONGODB_URI }}
+        JWT_SECRET=${{ secrets.JWT_SECRET }}
+        JWT_EXPIRES_IN=24h
+        CLOUDINARY_CLOUD_NAME=dnutx6czj
+        CLOUDINARY_API_KEY=362787522778931
+        CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
+        AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+        AZURE_STORAGE_CONTAINER_NAME=pet-images
+        MAIL_HOST=mail.spacemail.com
+        MAIL_PORT=465
+        SMTP_SECURE=true
+        MAIL_USER=admin@whiskarz.com
+        MAIL_PASS=${{ secrets.MAIL_PASS }}
+        MAIL_FROM=admin@whiskarz.com
+        ADMIN_EMAIL=admin@whiskarz.com
+        FRONTEND_URL=https://app.whiskarz.com/
+        ENVEOF
+
+    - name: Deploy containers
+      run: |
+        ssh -i ~/.ssh/id_rsa azureuser@${{ secrets.HOST_IP }} 'set -e
+        cd /var/www/Pet-Sitter-Management-System-API
         printf "services:\n  api:\n    build:\n      context: .\n      dockerfile: Dockerfile\n    ports:\n      - 8000:8000\n    env_file:\n      - .env\n    restart: unless-stopped\n    logging:\n      driver: json-file\n      options:\n        max-size: 10m\n        max-file: \"3\"\n" > docker-compose.yml
         docker image prune -f 2>/dev/null || true
         docker compose build --no-cache
