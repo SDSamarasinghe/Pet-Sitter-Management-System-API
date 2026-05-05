@@ -9,7 +9,7 @@ concurrency:
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   workflow_dispatch:
 
 env:
@@ -72,11 +72,14 @@ CLOUDINARY_API_KEY=362787522778931
 CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
 AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
 AZURE_STORAGE_CONTAINER_NAME=pet-images
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USER=lksadish@gmail.com
+MAIL_HOST=mail.spacemail.com
+MAIL_PORT=465
+SMTP_SECURE=true
+MAIL_USER=admin@whiskarz.com
 MAIL_PASS=${MAIL_PASS}
-MAIL_FROM=lksadish@gmail.com
+MAIL_FROM=admin@whiskarz.com
+ADMIN_EMAIL=admin@whiskarz.com
+FRONTEND_URL=https://app.whiskarz.com/
 ENVEOF"
 
         # Continue deployment
