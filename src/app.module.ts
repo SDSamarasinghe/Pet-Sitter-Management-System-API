@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { join } from 'path';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
@@ -31,6 +33,12 @@ import { HealthController } from './health/health.controller';
     
     // MongoDB connection using Mongoose
     MongooseModule.forRoot(process.env.MONGODB_URI),
+
+    // Rate limiting
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 60,
+    }]),
     
     // Mailer configuration
  MailerModule.forRootAsync({
@@ -40,11 +48,6 @@ import { HealthController } from './health/health.controller';
     const mailUser = configService.get('MAIL_USER');
     const mailPass = configService.get('MAIL_PASS');
     const mailHost = configService.get('MAIL_HOST', 'smtp.gmail.com');
-
-    console.log("🚀 ~ mailHost:", mailHost)
-    console.log("🚀 ~ mailPass:", mailPass)
-    console.log('🚀MAIL_PORT:', mailPort);
-    console.log('🚀MAIL_USER:', mailUser);
 
     return {
       transport: {
@@ -92,6 +95,8 @@ import { HealthController } from './health/health.controller';
     EmailModule,
   ],
   controllers: [HealthController],
-  providers: [],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}

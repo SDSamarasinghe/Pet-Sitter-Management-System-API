@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { json, urlencoded } from 'express';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   process.env.TZ = 'UTC';
@@ -13,9 +14,14 @@ async function bootstrap() {
   app.use(urlencoded({ limit: '10mb', extended: true }));
   
   // Enable CORS for frontend integration
+  const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim());
   app.enableCors({
-    origin: true,
+    origin: allowedOrigins,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
   
   // Enable validation pipes for DTO validation
@@ -24,6 +30,9 @@ async function bootstrap() {
     forbidNonWhitelisted: true,
     transform: true,
   }));
+  
+  // Global exception filter
+  app.useGlobalFilters(new AllExceptionsFilter());
   
   const port = process.env.PORT || 3000;
   await app.listen(port);
