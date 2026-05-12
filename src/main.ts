@@ -14,11 +14,22 @@ async function bootstrap() {
   app.use(urlencoded({ limit: '10mb', extended: true }));
   
   // Enable CORS for frontend integration
-  const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000')
+  const allowedOrigins = (process.env.CORS_ORIGINS || '')
     .split(',')
-    .map((o) => o.trim());
+    .map((o) => o.trim())
+    .filter(Boolean);
+  const allowAllOrigins = allowedOrigins.length === 0 || allowedOrigins.includes('*');
+
   app.enableCors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (allowAllOrigins || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS blocked: ${origin}`), false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
