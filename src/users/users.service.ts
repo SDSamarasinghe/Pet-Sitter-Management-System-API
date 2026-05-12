@@ -371,7 +371,7 @@ export class UsersService {
           lastName: updatedUser.lastName,
           email: updatedUser.email,
           role: updatedUser.role,
-          password: password, // Send the plain password in email
+          resetUrl: `${process.env.FRONTEND_URL || 'https://flyingduchess.com'}/reset-password`,
           loginUrl: process.env.FRONTEND_URL || 'https://flyingduchess.com/login',
         },
       });

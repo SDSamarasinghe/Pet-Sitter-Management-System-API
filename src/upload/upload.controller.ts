@@ -223,4 +223,40 @@ export class UploadController {
       throw new BadRequestException(`Upload failed: ${error.message}`);
     }
   }
+
+  @Post('note-attachment')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadNoteAttachment(
+    @UploadedFile() file: Express.Multer.File,
+    @Request() req,
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    // Keep note attachments reasonably sized
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      throw new BadRequestException('File size must be less than 10MB');
+    }
+
+    try {
+      const fileName = this.azureBlobService.generateFileName(file.originalname, 'note');
+      const url = await this.azureBlobService.uploadFile(file, fileName);
+
+      return {
+        success: true,
+        url,
+        fileName,
+        originalName: file.originalname,
+        size: file.size,
+        mimeType: file.mimetype,
+        uploadedBy: req.user.userId,
+        type: 'note-attachment',
+      };
+    } catch (error) {
+      throw new BadRequestException(`Upload failed: ${error.message}`);
+    }
+  }
 }
