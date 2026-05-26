@@ -3,11 +3,13 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Review, ReviewDocument } from './schemas/review.schema';
 import { CreateReviewDto, UpdateReviewDto } from './dto/review.dto';
+import { ActivityLogService } from '../activity-log/activity-log.service';
 
 @Injectable()
 export class ReviewsService {
   constructor(
     @InjectModel(Review.name) private reviewModel: Model<ReviewDocument>,
+    private activityLogService: ActivityLogService,
   ) {}
 
   /**
@@ -37,7 +39,23 @@ export class ReviewsService {
       bookingId: createReviewDto.bookingId ? new Types.ObjectId(createReviewDto.bookingId) : undefined,
     });
 
-    return review.save();
+    const savedReview = await review.save();
+
+    try {
+      await this.activityLogService.log(
+        currentUserId,
+        'Review created',
+        'report',
+        `Submitted review with ${savedReview.rating} stars`,
+        { rating: savedReview.rating, reviewType: createReviewDto.reviewType },
+        savedReview._id.toString(),
+        'review',
+      );
+    } catch (error) {
+      console.error('Failed to write review creation activity log:', (error as Error)?.message || error);
+    }
+
+    return savedReview;
   }
 
   /**
@@ -149,11 +167,27 @@ export class ReviewsService {
       delete updateReviewDto.adminResponse;
     }
 
-    return this.reviewModel.findByIdAndUpdate(
+    const updatedReview = await this.reviewModel.findByIdAndUpdate(
       id,
       { ...updateReviewDto, updatedAt: new Date() },
       { new: true }
     ).populate('reviewerId', 'firstName lastName profilePicture');
+
+    try {
+      await this.activityLogService.log(
+        currentUserId,
+        'Review updated',
+        'report',
+        `Updated review`,
+        { changedFields: Object.keys(updateReviewDto) },
+        id,
+        'review',
+      );
+    } catch (error) {
+      console.error('Failed to write review update activity log:', (error as Error)?.message || error);
+    }
+
+    return updatedReview;
   }
 
   /**
@@ -175,6 +209,20 @@ export class ReviewsService {
     }
 
     await this.reviewModel.findByIdAndDelete(id);
+
+    try {
+      await this.activityLogService.log(
+        currentUserId,
+        'Review deleted',
+        'report',
+        `Deleted review with ${review.rating} stars`,
+        { rating: review.rating, reviewType: review.reviewType },
+        id,
+        'review',
+      );
+    } catch (error) {
+      console.error('Failed to write review deletion activity log:', (error as Error)?.message || error);
+    }
   }
 
   /**

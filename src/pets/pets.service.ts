@@ -6,6 +6,7 @@ import { PetCare, PetCareDocument } from './schemas/pet-care.schema';
 import { PetMedical, PetMedicalDocument } from './schemas/pet-medical.schema';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { AzureBlobService } from '../azure-blob/azure-blob.service';
+import { ActivityLogService } from '../activity-log/activity-log.service';
 
 @Injectable()
 export class PetsService {
@@ -14,6 +15,7 @@ export class PetsService {
     @InjectModel(PetCare.name) private petCareModel: Model<PetCareDocument>,
     @InjectModel(PetMedical.name) private petMedicalModel: Model<PetMedicalDocument>,
     private azureBlobService: AzureBlobService,
+    private activityLogService: ActivityLogService,
   ) {}
 
   /**
@@ -26,7 +28,7 @@ export class PetsService {
   /**
    * Create a new pet for a user
    */
-  async create(createPetDto: CreatePetDto, userId: string, petImage?: Express.Multer.File): Promise<Pet> {
+  async create(createPetDto: CreatePetDto, userId: string, petImage?: any): Promise<Pet> {
     let photoUrl = createPetDto.photo;
 
     // Upload pet image if provided
@@ -43,7 +45,23 @@ export class PetsService {
       userId: userObjectId,
     });
     
-    return newPet.save();
+    const savedPet = await newPet.save();
+
+    try {
+      await this.activityLogService.log(
+        userId,
+        'Pet created',
+        'pet',
+        `Created pet "${createPetDto.name}" (${createPetDto.species})`,
+        { species: createPetDto.species, breed: createPetDto.breed },
+        savedPet._id.toString(),
+        'pet',
+      );
+    } catch (error) {
+      console.error('Failed to write pet create activity log:', (error as Error)?.message || error);
+    }
+
+    return savedPet;
   }
 
   /**
@@ -53,11 +71,6 @@ export class PetsService {
     try {
       // Convert userId to ObjectId for proper matching
       const userObjectId = new Types.ObjectId(userId); 
-      const allPets = await this.petModel.find().exec();
-      allPets.forEach(pet => {
-        const petUserIdString = pet.userId.toString();
-        const match = petUserIdString === userId;
-      });
       
       // Query for pets where userId matches
       const pets = await this.petModel
@@ -120,7 +133,7 @@ export class PetsService {
     updateData: Partial<CreatePetDto>, 
     currentUserId: string, 
     currentUserRole: string,
-    petImage?: Express.Multer.File
+    petImage?: any
   ): Promise<Pet> {
     const pet = await this.petModel.findById(petId).exec();
     
@@ -137,7 +150,7 @@ export class PetsService {
         try {
           await this.azureBlobService.deleteFile(pet.photo);
         } catch (error) {
-          console.log('Could not delete old pet image:', error.message);
+          console.log('Could not delete old pet image:', (error as Error)?.message);
         }
       }
       
@@ -150,13 +163,27 @@ export class PetsService {
       .populate('userId', 'email')
       .exec();
 
+    try {
+      await this.activityLogService.log(
+        currentUserId,
+        'Pet updated',
+        'pet',
+        `Updated pet "${updatedPet?.name || 'Unknown'}"`,
+        { changedFields: Object.keys(updateData) },
+        petId,
+        'pet',
+      );
+    } catch (error) {
+      console.error('Failed to write pet update activity log:', (error as Error)?.message || error);
+    }
+
     return updatedPet;
   }
 
   /**
    * Update pet photo
    */
-  async updatePetPhoto(petId: string, currentUserId: string, currentUserRole: string, petImage: Express.Multer.File): Promise<Pet> {
+  async updatePetPhoto(petId: string, currentUserId: string, currentUserRole: string, petImage: any): Promise<Pet> {
     const pet = await this.petModel.findById(petId).exec();
     
     if (!pet) {
@@ -173,7 +200,7 @@ export class PetsService {
       try {
         await this.azureBlobService.deleteFile(pet.photo);
       } catch (error) {
-        console.log('Could not delete old pet photo:', error.message);
+        console.log('Could not delete old pet photo:', (error as Error)?.message);
       }
     }
 
@@ -184,6 +211,20 @@ export class PetsService {
       .findByIdAndUpdate(petId, { photo: photoUrl }, { new: true })
       .populate('userId', 'email')
       .exec();
+
+    try {
+      await this.activityLogService.log(
+        currentUserId,
+        'Pet photo uploaded',
+        'pet',
+        `Uploaded photo for pet "${updatedPet?.name || 'Unknown'}"`,
+        {},
+        petId,
+        'pet',
+      );
+    } catch (error) {
+      console.error('Failed to write pet photo upload activity log:', (error as Error)?.message || error);
+    }
 
     return updatedPet;
   }
@@ -208,7 +249,7 @@ export class PetsService {
       try {
         await this.azureBlobService.deleteFile(pet.photo);
       } catch (error) {
-        console.log('Could not delete pet photo:', error.message);
+        console.log('Could not delete pet photo:', (error as Error)?.message);
       }
     }
 
@@ -216,6 +257,20 @@ export class PetsService {
       .findByIdAndUpdate(petId, { photo: null }, { new: true })
       .populate('userId', 'email')
       .exec();
+
+    try {
+      await this.activityLogService.log(
+        currentUserId,
+        'Pet photo deleted',
+        'pet',
+        `Removed photo for pet "${updatedPet?.name || 'Unknown'}"`,
+        {},
+        petId,
+        'pet',
+      );
+    } catch (error) {
+      console.error('Failed to write pet photo delete activity log:', (error as Error)?.message || error);
+    }
 
     return updatedPet;
   }
@@ -246,7 +301,7 @@ export class PetsService {
       try {
         await this.azureBlobService.deleteFile(pet.photo);
       } catch (error) {
-        console.log('Could not delete pet photo:', error.message);
+        console.log('Could not delete pet photo:', (error as Error)?.message);
       }
     }
 
@@ -256,11 +311,25 @@ export class PetsService {
         try {
           await this.azureBlobService.deleteFile(photoUrl);
         } catch (error) {
-          console.log('Could not delete pet photo:', error.message);
+          console.log('Could not delete pet photo:', (error as Error)?.message);
         }
       }
     }
 
     await this.petModel.findByIdAndDelete(petId).exec();
+
+    try {
+      await this.activityLogService.log(
+        currentUserId,
+        'Pet deleted',
+        'pet',
+        `Deleted pet "${pet.name}" (${pet.species})`,
+        { species: pet.species, breed: pet.breed },
+        petId,
+        'pet',
+      );
+    } catch (error) {
+      console.error('Failed to write pet delete activity log:', (error as Error)?.message || error);
+    }
   }
 }

@@ -364,7 +364,7 @@ export class BookingsController {
     if (!id || id.trim() === '') {
       throw new BadRequestException('Booking ID is required');
     }
-    await this.bookingsService.deleteByAdmin(id);
+    await this.bookingsService.deleteByAdmin(id, req.user.userId);
     return { message: 'Booking deleted by admin successfully' };
   }
 
@@ -376,7 +376,8 @@ export class BookingsController {
   @Put(':id/assign-sitter')
   async assignSitter(
     @Param('id') id: string,
-    @Body('sitterId') sitterId: string
+    @Body('sitterId') sitterId: string,
+    @Request() req
   ) {
     // Validate booking ID parameter
     if (!id || id.trim() === '') {
@@ -388,7 +389,7 @@ export class BookingsController {
       throw new BadRequestException('Sitter ID is required');
     }
     
-    return this.bookingsService.assignSitter(id, sitterId);
+    return this.bookingsService.assignSitter(id, sitterId, req.user.userId);
   }
 
   /**

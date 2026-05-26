@@ -13,6 +13,7 @@ import { KeySecurity, KeySecurityDocument } from '../key-security/schemas/key-se
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AzureBlobService } from '../azure-blob/azure-blob.service';
+import { ActivityLogService } from '../activity-log/activity-log.service';
 
 @Injectable()
 export class UsersService {
@@ -25,6 +26,7 @@ export class UsersService {
     @InjectModel(KeySecurity.name) private keySecurityModel: Model<KeySecurityDocument>,
     private mailerService: MailerService,
     private azureBlobService: AzureBlobService,
+    private activityLogService: ActivityLogService,
   ) {}
 
   /**
@@ -166,6 +168,20 @@ export class UsersService {
       console.error('Failed to send admin notification email:', error);
       // Don't fail user creation if email fails
     }
+
+    try {
+      await this.activityLogService.log(
+        savedUser._id.toString(),
+        'User registered',
+        'user',
+        `New user account created: ${savedUser.firstName} ${savedUser.lastName} (${savedUser.role})`,
+        { role: savedUser.role, email: savedUser.email },
+        savedUser._id.toString(),
+        'user',
+      );
+    } catch (error) {
+      console.error('Failed to write user creation activity log:', (error as Error)?.message || error);
+    }
     
     return savedUser;
   }
@@ -231,7 +247,8 @@ export class UsersService {
     currentUserId: string, 
     currentUserRole: string
   ): Promise<UserDocument> {
-    const user = await this.findById(id);
+    // Verify user exists (will throw if not found)
+    await this.findById(id);
     
     // Only allow users to update their own profile or admins to update any profile
     if (id !== currentUserId && currentUserRole !== 'admin') {
@@ -264,6 +281,21 @@ export class UsersService {
       
     if (!updatedUser) {
       throw new NotFoundException('User not found');
+    }
+
+    try {
+      const changedFields = Object.keys(updateUserDto).filter(key => updateUserDto[key] !== undefined);
+      await this.activityLogService.log(
+        currentUserId,
+        'User profile updated',
+        'user',
+        `Updated profile for ${updatedUser.firstName} ${updatedUser.lastName}`,
+        { changedFields },
+        id,
+        'user',
+      );
+    } catch (error) {
+      console.error('Failed to write user update activity log:', (error as Error)?.message || error);
     }
     
     // Return user with dynamically computed formStatus
@@ -381,6 +413,20 @@ export class UsersService {
       // Don't fail approval if email fails
     }
 
+    try {
+      await this.activityLogService.log(
+        '000000000000000000000000', // System log (use placeholder for admin action)
+        'User approved',
+        'user',
+        `Approved user ${updatedUser.firstName} ${updatedUser.lastName} (${updatedUser.role})`,
+        { userRole: updatedUser.role, email: updatedUser.email },
+        userId,
+        'user',
+      );
+    } catch (error) {
+      console.error('Failed to write user approval activity log:', (error as Error)?.message || error);
+    }
+
     return updatedUser;
   }
 
@@ -426,13 +472,27 @@ export class UsersService {
       // Don't fail rejection if email fails
     }
 
+    try {
+      await this.activityLogService.log(
+        '000000000000000000000000', // System log (use placeholder for admin action)
+        'User rejected',
+        'user',
+        `Rejected user ${updatedUser.firstName} ${updatedUser.lastName} (${updatedUser.role})`,
+        { userRole: updatedUser.role, email: updatedUser.email },
+        userId,
+        'user',
+      );
+    } catch (error) {
+      console.error('Failed to write user rejection activity log:', (error as Error)?.message || error);
+    }
+
     return updatedUser;
   }
 
   /**
    * Update user's profile picture
    */
-  async updateProfilePicture(userId: string, file: Express.Multer.File): Promise<UserDocument> {
+  async updateProfilePicture(userId: string, file: any): Promise<UserDocument> {
     const user = await this.userModel.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
@@ -468,12 +528,26 @@ export class UsersService {
         throw new NotFoundException('User not found');
       }
 
+      try {
+        await this.activityLogService.log(
+          userId,
+          'Profile picture uploaded',
+          'profile',
+          `Updated profile picture for ${updatedUser.firstName} ${updatedUser.lastName}`,
+          {},
+          userId,
+          'user',
+        );
+      } catch (error) {
+        console.error('Failed to write profile picture upload activity log:', (error as Error)?.message || error);
+      }
+
       return updatedUser;
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
         throw error;
       }
-      throw new BadRequestException(`Upload failed: ${error.message}`);
+      throw new BadRequestException(`Upload failed: ${(error as Error)?.message}`);
     }
   }
 
@@ -643,6 +717,20 @@ export class UsersService {
     await this.userModel.findByIdAndDelete(userId);
 
     console.log(`✅ Successfully deleted ${userRole}: ${userName} (ID: ${userId})`);
+
+    try {
+      await this.activityLogService.log(
+        '000000000000000000000000', // System log (use placeholder for admin action)
+        'User deleted',
+        'user',
+        `Deleted user ${userName} (${userRole}) and ${totalBookingsDeleted} associated bookings`,
+        { userRole, totalBookingsDeleted, petsDeleted: user.role === 'client' ? 'included' : 'N/A' },
+        userId,
+        'user',
+      );
+    } catch (error) {
+      console.error('Failed to write user deletion activity log:', (error as Error)?.message || error);
+    }
 
     return {
       message: `${userRole.charAt(0).toUpperCase() + userRole.slice(1)} "${userName}" and all associated data (${totalBookingsDeleted} bookings) have been successfully removed from the system`,

@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import { EmailService } from '../email/email.service';
+import { ActivityLogService } from '../activity-log/activity-log.service';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -13,6 +14,7 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private emailService: EmailService,
+    private activityLogService: ActivityLogService,
   ) {}
 
   /**
@@ -56,6 +58,21 @@ export class AuthService {
       firstName: user.firstName,
       lastName: user.lastName
     };
+
+    try {
+      await this.activityLogService.log(
+        user._id.toString(),
+        'User logged in',
+        'auth',
+        `${user.firstName || 'User'} ${user.lastName || ''}`.trim() + ' signed in successfully',
+        { role: user.role, email: user.email },
+        user._id.toString(),
+        'user',
+      );
+    } catch (error) {
+      // Activity log failure should never block login.
+      console.error('Failed to write auth activity log:', error?.message || error);
+    }
 
     return {
       access_token: this.jwtService.sign(payload),

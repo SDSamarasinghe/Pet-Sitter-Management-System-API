@@ -3,11 +3,13 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Invoice, InvoiceDocument } from './schemas/invoice.schema';
 import { CreateInvoiceDto, UpdateInvoiceDto, PayInvoiceDto } from './dto/invoice.dto';
+import { ActivityLogService } from '../activity-log/activity-log.service';
 
 @Injectable()
 export class InvoicesService {
   constructor(
     @InjectModel(Invoice.name) private invoiceModel: Model<InvoiceDocument>,
+    private activityLogService: ActivityLogService,
   ) {}
 
   /**
@@ -60,7 +62,23 @@ export class InvoicesService {
       dueDate: new Date(createInvoiceDto.dueDate),
     });
 
-    return invoice.save();
+    const savedInvoice = await invoice.save();
+
+    try {
+      await this.activityLogService.log(
+        '000000000000000000000000', // System log
+        'Invoice created',
+        'invoice',
+        `Created invoice ${savedInvoice.invoiceNumber} for amount $${savedInvoice.amount}`,
+        { invoiceNumber: savedInvoice.invoiceNumber, amount: savedInvoice.amount },
+        savedInvoice._id.toString(),
+        'invoice',
+      );
+    } catch (error) {
+      console.error('Failed to write invoice creation activity log:', error?.message || error);
+    }
+
+    return savedInvoice;
   }
 
   /**
@@ -162,11 +180,27 @@ export class InvoicesService {
       updates.paidDate = new Date(updates.paidDate) as any;
     }
 
-    return this.invoiceModel.findByIdAndUpdate(
+    const updatedInvoice = await this.invoiceModel.findByIdAndUpdate(
       id,
       { ...updates, updatedAt: new Date() },
       { new: true }
     ).populate('clientId', 'firstName lastName email');
+
+    try {
+      await this.activityLogService.log(
+        '000000000000000000000000', // System log
+        'Invoice updated',
+        'invoice',
+        `Updated invoice ${invoice.invoiceNumber}`,
+        { changedFields: Object.keys(updateInvoiceDto) },
+        id,
+        'invoice',
+      );
+    } catch (error) {
+      console.error('Failed to write invoice update activity log:', error?.message || error);
+    }
+
+    return updatedInvoice;
   }
 
   /**
@@ -188,7 +222,7 @@ export class InvoicesService {
       throw new ForbiddenException('You can only pay your own invoices');
     }
 
-    return this.invoiceModel.findByIdAndUpdate(
+    const paidInvoice = await this.invoiceModel.findByIdAndUpdate(
       id,
       {
         status: 'paid',
@@ -199,6 +233,22 @@ export class InvoicesService {
       },
       { new: true }
     ).populate('clientId', 'firstName lastName email');
+
+    try {
+      await this.activityLogService.log(
+        currentUserId,
+        'Invoice paid',
+        'invoice',
+        `Marked invoice ${invoice.invoiceNumber} as paid via ${payInvoiceDto.paymentMethod || 'unspecified method'}`,
+        { paymentMethod: payInvoiceDto.paymentMethod, invoiceNumber: invoice.invoiceNumber },
+        id,
+        'invoice',
+      );
+    } catch (error) {
+      console.error('Failed to write invoice payment activity log:', error?.message || error);
+    }
+
+    return paidInvoice;
   }
 
   /**
@@ -281,6 +331,20 @@ export class InvoicesService {
     }
 
     await this.invoiceModel.findByIdAndDelete(id);
+
+    try {
+      await this.activityLogService.log(
+        '000000000000000000000000', // System log
+        'Invoice deleted',
+        'invoice',
+        `Deleted invoice ${invoice.invoiceNumber}`,
+        { invoiceNumber: invoice.invoiceNumber, amount: invoice.amount },
+        id,
+        'invoice',
+      );
+    } catch (error) {
+      console.error('Failed to write invoice deletion activity log:', error?.message || error);
+    }
   }
 
   /**

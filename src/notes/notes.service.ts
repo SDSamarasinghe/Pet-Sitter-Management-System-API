@@ -5,6 +5,7 @@ import { Note, NoteDocument } from './schemas/note.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateNoteDto, CreateNoteReplyDto, GetNotesQueryDto } from './dto/note.dto';
 import { EmailService } from '../email/email.service';
+import { ActivityLogService } from '../activity-log/activity-log.service';
 
 @Injectable()
 export class NotesService {
@@ -12,6 +13,7 @@ export class NotesService {
     @InjectModel(Note.name) private noteModel: Model<NoteDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private emailService: EmailService,
+    private activityLogService: ActivityLogService,
   ) {}
 
   /**
@@ -50,6 +52,20 @@ export class NotesService {
 
     // Also notify admin
     await this.notifyAdmin(populatedNote, sender, recipient, 'new');
+
+    try {
+      await this.activityLogService.log(
+        senderId,
+        'Note sent',
+        'user',
+        `Sent note to ${recipient.firstName} ${recipient.lastName}`,
+        { recipientEmail: recipient.email },
+        populatedNote._id.toString(),
+        'note',
+      );
+    } catch (error) {
+      console.error('Failed to write note creation activity log:', (error as Error)?.message || error);
+    }
 
     return populatedNote;
   }
@@ -187,6 +203,20 @@ export class NotesService {
 
     await this.notifyAdmin(updatedNote, sender, recipient, 'reply');
 
+    try {
+      await this.activityLogService.log(
+        senderId,
+        'Note reply sent',
+        'user',
+        `Replied to note from ${recipient.firstName} ${recipient.lastName}`,
+        { recipientEmail: recipient.email },
+        noteId,
+        'note',
+      );
+    } catch (error) {
+      console.error('Failed to write note reply activity log:', (error as Error)?.message || error);
+    }
+
     return updatedNote;
   }
 
@@ -298,7 +328,7 @@ export class NotesService {
       console.log(`✅ [NOTES SERVICE] ${type} notification email sent to ${recipient.email}`);
     } catch (error) {
       console.error(`❌ [NOTES SERVICE] Failed to send ${type} notification email:`, error);
-      console.error(`❌ [NOTES SERVICE] Error details:`, error.message);
+      console.error(`❌ [NOTES SERVICE] Error details:`, (error as Error)?.message);
       // Don't throw - email failure shouldn't break note creation
     }
   }

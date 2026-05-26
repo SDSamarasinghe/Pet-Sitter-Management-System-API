@@ -8,6 +8,7 @@ import { CreateBookingAdminDto } from './dto/create-booking-admin.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { ServiceInquiryDto } from './dto/service-inquiry.dto';
 import { EmailService } from '../email/email.service';
+import { ActivityLogService } from '../activity-log/activity-log.service';
 import { toDate } from 'date-fns-tz';
 
 @Injectable()
@@ -16,14 +17,29 @@ export class BookingsService {
     @InjectModel(Booking.name) private bookingModel: Model<BookingDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private emailService: EmailService,
+    private activityLogService: ActivityLogService,
   ) {}
 
-  async deleteByAdmin(bookingId: string): Promise<void> {
+  async deleteByAdmin(bookingId: string, adminUserId: string): Promise<void> {
     const booking = await this.bookingModel.findById(bookingId).exec();
     if (!booking) {
       throw new NotFoundException('Booking not found');
     }
     await this.bookingModel.findByIdAndDelete(bookingId).exec();
+
+    try {
+      await this.activityLogService.log(
+        adminUserId,
+        'Booking deleted by admin',
+        'booking',
+        `Admin deleted booking ${bookingId}`,
+        { deletedForUserId: booking.userId?.toString() },
+        bookingId,
+        'booking',
+      );
+    } catch (error) {
+      console.error('Failed to write admin booking delete activity log:', (error as Error)?.message || error);
+    }
   }
 
   /**
@@ -240,6 +256,25 @@ export class BookingsService {
     
     console.log(`✅ Successfully created ${bookingIds.length} bookings:`, bookingIds.map(id => id.toString()));
 
+    try {
+      await this.activityLogService.log(
+        user._id.toString(),
+        'Service inquiry submitted',
+        'booking',
+        `Created ${bookingIds.length} service inquiry booking(s)`,
+        {
+          customerType: serviceInquiryDto.customerType,
+          numberOfPets: serviceInquiryDto.numberOfPets,
+          bookingCount: bookingIds.length,
+          totalEstimatedCost,
+        },
+        bookingIds[0]?.toString(),
+        'booking',
+      );
+    } catch (error) {
+      console.error('Failed to write service inquiry activity log:', (error as Error)?.message || error);
+    }
+
     // Get the first booking for email notification (with populated user details)
     const firstBooking = await this.bookingModel
       .findById(bookingIds[0])
@@ -333,6 +368,23 @@ export class BookingsService {
     }
     
     // Return the first booking as reference
+    try {
+      await this.activityLogService.log(
+        userId,
+        'Booking created',
+        'booking',
+        `Created ${savedBookings.length} booking day(s)`,
+        {
+          serviceType: createBookingDto.serviceType,
+          bookingCount: savedBookings.length,
+        },
+        savedBookings[0]?._id?.toString(),
+        'booking',
+      );
+    } catch (error) {
+      console.error('Failed to write create booking activity log:', (error as Error)?.message || error);
+    }
+
     return savedBookings[0] as any;
   }
 
@@ -415,6 +467,24 @@ export class BookingsService {
     }
     
     // Return the first booking as reference
+    try {
+      await this.activityLogService.log(
+        adminUserId,
+        'Booking created by admin',
+        'booking',
+        `Admin created ${savedBookings.length} booking day(s) for client ${createBookingAdminDto.userId}`,
+        {
+          serviceType: createBookingAdminDto.serviceType,
+          clientId: createBookingAdminDto.userId,
+          bookingCount: savedBookings.length,
+        },
+        savedBookings[0]?._id?.toString(),
+        'booking',
+      );
+    } catch (error) {
+      console.error('Failed to write admin booking activity log:', (error as Error)?.message || error);
+    }
+
     return savedBookings[0] as any;
   }
 
@@ -753,8 +823,8 @@ export class BookingsService {
       console.log(`✅ All note notification emails sent successfully for booking ${booking._id}`);
     } catch (error) {
       console.error(`❌ Failed to send note notification emails for booking ${booking._id}:`, error);
-      console.error(`❌ Error details:`, error.message);
-      console.error(`❌ Stack trace:`, error.stack);
+      console.error(`❌ Error details:`, (error as Error)?.message);
+      console.error(`❌ Stack trace:`, (error as Error)?.stack);
       // Don't throw error - notification failure shouldn't break note creation
     }
   }
@@ -889,6 +959,26 @@ export class BookingsService {
       );
     }
 
+    if (updatedBooking) {
+      try {
+        await this.activityLogService.log(
+          currentUserId,
+          'Booking updated',
+          'booking',
+          `Updated booking ${bookingId}`,
+          {
+            previousStatus: originalStatus,
+            nextStatus: updatedBooking.status,
+            role: currentUserRole,
+          },
+          bookingId,
+          'booking',
+        );
+      } catch (error) {
+        console.error('Failed to write booking update activity log:', (error as Error)?.message || error);
+      }
+    }
+
     return updatedBooking;
   }
 
@@ -947,12 +1037,26 @@ export class BookingsService {
     }
 
     await this.bookingModel.findByIdAndDelete(bookingId).exec();
+
+    try {
+      await this.activityLogService.log(
+        currentUserId,
+        'Booking deleted',
+        'booking',
+        `Deleted booking ${bookingId}`,
+        { role: currentUserRole },
+        bookingId,
+        'booking',
+      );
+    } catch (error) {
+      console.error('Failed to write booking delete activity log:', (error as Error)?.message || error);
+    }
   }
 
   /**
    * Assign sitter to booking (admin only)
    */
-  async assignSitter(bookingId: string, sitterId: string): Promise<Booking> {
+  async assignSitter(bookingId: string, sitterId: string, assignedByUserId: string): Promise<Booking> {
     const booking = await this.bookingModel
       .findByIdAndUpdate(
         bookingId,
@@ -974,6 +1078,20 @@ export class BookingsService {
     // Send email notification to the assigned sitter
     if (booking.sitterId) {
       await this.sendSitterAssignmentNotification(booking);
+    }
+
+    try {
+      await this.activityLogService.log(
+        assignedByUserId,
+        'Sitter assigned',
+        'booking',
+        `Assigned sitter ${sitterId} to booking ${bookingId}`,
+        { sitterId },
+        bookingId,
+        'booking',
+      );
+    } catch (error) {
+      console.error('Failed to write assign sitter activity log:', (error as Error)?.message || error);
     }
 
     return booking;

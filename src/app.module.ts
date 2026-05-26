@@ -24,6 +24,7 @@ import { AzureBlobModule } from './azure-blob/azure-blob.module';
 import { UploadModule } from './upload/upload.module';
 import { AvailabilityModule } from './availability/availability.module';
 import { EmailModule } from './email/email.module';
+import { ActivityLogModule } from './activity-log/activity-log.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -95,6 +96,7 @@ import { HealthController } from './health/health.controller';
     UploadModule,
     AvailabilityModule,
     EmailModule,
+    ActivityLogModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

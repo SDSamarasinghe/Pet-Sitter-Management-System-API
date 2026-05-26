@@ -5,6 +5,7 @@ import { Comment, CommentDocument } from './schemas/comment.schema';
 import { Booking, BookingDocument } from '../bookings/schemas/booking.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateCommentDto, UpdateCommentDto } from './dto/comment.dto';
+import { ActivityLogService } from '../activity-log/activity-log.service';
 
 @Injectable()
 export class CommentsService {
@@ -12,6 +13,7 @@ export class CommentsService {
     @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
     @InjectModel(Booking.name) private bookingModel: Model<BookingDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    private activityLogService: ActivityLogService,
   ) {}
 
   /**
@@ -53,13 +55,29 @@ export class CommentsService {
       readBy: [{ user: new Types.ObjectId(userId), readAt: new Date() }]
     });
 
-    await comment.save();
+    const savedComment = await comment.save();
 
-    return this.commentModel
-      .findById(comment._id)
+    const populatedComment = await this.commentModel
+      .findById(savedComment._id)
       .populate('addedBy', 'firstName lastName email')
       .populate('bookingId', 'startDate endDate serviceType')
       .exec();
+
+    try {
+      await this.activityLogService.log(
+        userId,
+        'Comment added',
+        'booking',
+        `Added comment on booking`,
+        { isInternal: createCommentDto.isInternal || false },
+        createCommentDto.bookingId,
+        'booking',
+      );
+    } catch (error) {
+      console.error('Failed to write comment creation activity log:', error?.message || error);
+    }
+
+    return populatedComment;
   }
 
   /**
@@ -146,11 +164,27 @@ export class CommentsService {
     comment.updatedAt = new Date();
     await comment.save();
 
-    return this.commentModel
+    const updatedComment = await this.commentModel
       .findById(commentId)
       .populate('addedBy', 'firstName lastName email')
       .populate('bookingId', 'startDate endDate serviceType')
       .exec();
+
+    try {
+      await this.activityLogService.log(
+        userId,
+        'Comment updated',
+        'booking',
+        `Updated comment on booking`,
+        { changedFields: Object.keys(updateCommentDto) },
+        comment.bookingId.toString(),
+        'booking',
+      );
+    } catch (error) {
+      console.error('Failed to write comment update activity log:', error?.message || error);
+    }
+
+    return updatedComment;
   }
 
   /**
@@ -171,7 +205,22 @@ export class CommentsService {
       throw new ForbiddenException('You can only delete your own comments');
     }
 
+    const bookingId = comment.bookingId.toString();
     await this.commentModel.findByIdAndDelete(commentId).exec();
+
+    try {
+      await this.activityLogService.log(
+        userId,
+        'Comment deleted',
+        'booking',
+        `Deleted comment from booking`,
+        {},
+        bookingId,
+        'booking',
+      );
+    } catch (error) {
+      console.error('Failed to write comment deletion activity log:', error?.message || error);
+    }
   }
 
   /**
