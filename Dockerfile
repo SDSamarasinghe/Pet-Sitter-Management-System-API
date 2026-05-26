@@ -8,7 +8,7 @@ RUN apk add --no-cache python3 make g++
 
 # Copy package files
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Copy source code
 COPY . .
@@ -28,7 +28,7 @@ RUN apk add --no-cache python3 make g++
 COPY --from=builder /app/package*.json ./
 
 # Install production dependencies (this will compile native modules for Alpine)
-RUN npm ci --only=production
+RUN npm ci --only=production --legacy-peer-deps
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
