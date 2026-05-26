@@ -144,7 +144,7 @@ export class ReviewsController {
   /**
    * GET /reviews/stats/:userId? - Get review statistics
    */
-  @Get('stats/:userId?')
+  @Get(['stats', 'stats/:userId'])
   async getReviewStats(@Param('userId') userId?: string) {
     return this.reviewsService.getReviewStats(userId);
   }

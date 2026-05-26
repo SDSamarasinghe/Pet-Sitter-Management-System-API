@@ -56,7 +56,7 @@ export class NotesController {
    * GET /notes/recent/:limit?
    */
   @Roles('admin', 'sitter', 'client')
-  @Get('recent/:limit?')
+  @Get(['recent', 'recent/:limit'])
   async getRecentNotes(
     @Request() req,
     @Param('limit') limit?: string,

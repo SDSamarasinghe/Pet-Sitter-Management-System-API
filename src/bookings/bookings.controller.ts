@@ -209,7 +209,7 @@ export class BookingsController {
    * GET /bookings/stats/:clientId? - Get booking statistics
    */
   @UseGuards(JwtAuthGuard)
-  @Get('stats/:clientId?')
+  @Get(['stats', 'stats/:clientId'])
   async getBookingStats(
     @Param('clientId') clientId: string,
     @Request() req

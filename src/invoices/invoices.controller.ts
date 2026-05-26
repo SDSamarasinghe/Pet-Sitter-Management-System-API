@@ -112,7 +112,7 @@ export class InvoicesController {
   /**
    * GET /invoices/stats/:clientId? - Get invoice statistics
    */
-  @Get('stats/:clientId?')
+  @Get(['stats', 'stats/:clientId'])
   async getInvoiceStats(
     @Param('clientId') clientId: string,
     @Request() req
