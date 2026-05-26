@@ -145,7 +145,7 @@ export class InvoicesService {
     }
 
     // Recalculate amount if line items are updated
-    let updates = { ...updateInvoiceDto };
+    const updates = { ...updateInvoiceDto };
     if (updateInvoiceDto.lineItems) {
       const subtotal = updateInvoiceDto.lineItems.reduce(
         (sum, item) => sum + (item.amount * item.quantity), 0

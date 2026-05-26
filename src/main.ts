@@ -1,20 +1,28 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { AppModule } from './app.module';
+import { Logger, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import helmet from 'helmet';
+import compression from 'compression';
 import { json, urlencoded } from 'express';
+import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
-  process.env.TZ = 'UTC';
-  
-  const app = await NestFactory.create(AppModule);
-  
-  // Increase body size limit for file uploads (10MB)
+  process.env.TZ = process.env.TZ || 'UTC';
+
+  const app = await NestFactory.create(AppModule, {
+    logger: ['error', 'warn', 'log'],
+  });
+  const config = app.get(ConfigService);
+  const logger = new Logger('Bootstrap');
+
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+  app.use(compression());
   app.use(json({ limit: '10mb' }));
   app.use(urlencoded({ limit: '10mb', extended: true }));
-  
-  // Enable CORS for frontend integration
-  const allowedOrigins = (process.env.CORS_ORIGINS || '')
+
+  const allowedOrigins = (config.get<string>('CORS_ORIGINS') || '')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
@@ -22,31 +30,50 @@ async function bootstrap() {
 
   app.enableCors({
     origin: (origin, callback) => {
-      if (!origin) {
-        return callback(null, true);
-      }
-      if (allowAllOrigins || allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+      if (!origin) return callback(null, true);
+      if (allowAllOrigins || allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error(`CORS blocked: ${origin}`), false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    maxAge: 86400,
   });
-  
-  // Enable validation pipes for DTO validation
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-  }));
-  
-  // Global exception filter
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
+
   app.useGlobalFilters(new AllExceptionsFilter());
-  
-  const port = process.env.PORT || 3000;
+
+  app.enableShutdownHooks();
+
+  if (config.get<string>('NODE_ENV') !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Whiskarz Pet-Sitting API')
+      .setDescription('NestJS backend API for the pet-sitting platform')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document, {
+      swaggerOptions: { persistAuthorization: true },
+    });
+    logger.log('Swagger UI available at /api/docs');
+  }
+
+  const port = config.get<number>('PORT') ?? 3000;
   await app.listen(port);
-  console.log(`Whiskerz Pet-Sitting API is running on port ${port} (UTC timezone)`);
+  logger.log(`Whiskarz Pet-Sitting API listening on port ${port} (TZ=${process.env.TZ})`);
 }
-bootstrap();
+
+bootstrap().catch((err) => {
+  // eslint-disable-next-line no-console
+  console.error('Failed to bootstrap API:', err);
+  process.exit(1);
+});

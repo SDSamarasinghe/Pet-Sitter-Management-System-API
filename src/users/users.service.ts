@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { InjectModel } from '@nestjs/mongoose';
 import { MailerService } from '@nestjs-modules/mailer';
 import { Model, Types } from 'mongoose';
+import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { User, UserDocument } from './schemas/user.schema';
 import { Pet, PetDocument } from '../pets/schemas/pet.schema';
@@ -515,8 +516,7 @@ export class UsersService {
     }
 
     // Generate a secure random token
-    const crypto = require('crypto');
-    const token = crypto.randomBytes(32).toString('hex');
+    const token = randomBytes(32).toString('hex');
     
     // Set token and expiration (1 hour from now)
     const expires = new Date();

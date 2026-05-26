@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
+import { imageMulterOptions } from '../common/upload/image-multer.options';
 import { PetsService } from './pets.service';
 import { PetCareService } from './services/pet-care.service';
 import { CreatePetDto } from './dto/create-pet.dto';
@@ -46,7 +47,7 @@ export class PetsController {
    * Supports multipart/form-data for pet image upload
    */
   @Post()
-  @UseInterceptors(FileInterceptor('petImage'))
+  @UseInterceptors(FileInterceptor('petImage', imageMulterOptions))
   async create(
     @Body() createPetDto: CreatePetDto, 
     @UploadedFile() petImage: Express.Multer.File,
@@ -88,7 +89,7 @@ export class PetsController {
    * Supports multipart/form-data for pet image upload
    */
   @Put(':id')
-  @UseInterceptors(FileInterceptor('petImage'))
+  @UseInterceptors(FileInterceptor('petImage', imageMulterOptions))
   async update(
     @Param('id') id: string,
     @Body() updateData: Partial<CreatePetDto>,
@@ -104,7 +105,7 @@ export class PetsController {
    * Pet owner and admins can update pet photo
    */
   @Post(':id/photo')
-  @UseInterceptors(FileInterceptor('petImage'))
+  @UseInterceptors(FileInterceptor('petImage', imageMulterOptions))
   async updatePhoto(
     @Param('id') id: string,
     @UploadedFile() petImage: Express.Multer.File,

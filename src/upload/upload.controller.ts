@@ -11,13 +11,14 @@ import {
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AzureBlobService } from '../azure-blob/azure-blob.service';
+import { imageMulterOptions, MAX_IMAGE_BYTES } from '../common/upload/image-multer.options';
 
 @Controller('upload')
 export class UploadController {
   constructor(private azureBlobService: AzureBlobService) {}
 
   @Post('profile-picture')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', imageMulterOptions))
   async uploadProfilePicture(
     @UploadedFile() file: Express.Multer.File,
   ) {
@@ -56,7 +57,7 @@ export class UploadController {
 
   @Post('image')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', imageMulterOptions))
   async uploadImage(
     @UploadedFile() file: Express.Multer.File,
     @Request() req
@@ -96,7 +97,7 @@ export class UploadController {
   }
 
   @Post('images')
-  @UseInterceptors(FilesInterceptor('files', 10)) // Max 10 files
+  @UseInterceptors(FilesInterceptor('files', 10, imageMulterOptions))
   async uploadMultipleImages(
     @UploadedFiles() files: Express.Multer.File[],
     @Request() req
@@ -143,7 +144,7 @@ export class UploadController {
 
   @Post('note-image')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', imageMulterOptions))
   async uploadNoteImage(
     @UploadedFile() file: Express.Multer.File,
     @Request() req
@@ -184,7 +185,7 @@ export class UploadController {
   }
 
   @Post('pet-photo')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', imageMulterOptions))
   async uploadPetPhoto(
     @UploadedFile() file: Express.Multer.File,
     @Request() req
@@ -226,7 +227,7 @@ export class UploadController {
 
   @Post('note-attachment')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_IMAGE_BYTES, files: 1 } }))
   async uploadNoteAttachment(
     @UploadedFile() file: Express.Multer.File,
     @Request() req,

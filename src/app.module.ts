@@ -6,6 +6,8 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { join } from 'path';
+
+import { envValidationSchema } from './common/config/env.validation';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { PetsModule } from './pets/pets.module';
@@ -26,57 +28,57 @@ import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
-    // Configuration module to load environment variables
     ConfigModule.forRoot({
       isGlobal: true,
+      cache: true,
+      validationSchema: envValidationSchema,
+      validationOptions: { abortEarly: false },
     }),
-    
-    // MongoDB connection using Mongoose
-    MongooseModule.forRoot(process.env.MONGODB_URI),
 
-    // Rate limiting
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 60,
-    }]),
-    
-    // Mailer configuration
- MailerModule.forRootAsync({
-  imports: [ConfigModule],
-  useFactory: async (configService: ConfigService) => {
-    const mailPort = configService.get('MAIL_PORT', 587);
-    const mailUser = configService.get('MAIL_USER');
-    const mailPass = configService.get('MAIL_PASS');
-    const mailHost = configService.get('MAIL_HOST', 'smtp.gmail.com');
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        uri: configService.get<string>('MONGODB_URI'),
+      }),
+      inject: [ConfigService],
+    }),
 
-    return {
-      transport: {
-        host: configService.get('MAIL_HOST', 'smtp.gmail.com'),
-        port: mailPort,
-        secure: Number(mailPort) === 465, // true for 465, false otherwise
-        auth: {
-          user: mailUser,
-          pass: configService.get('MAIL_PASS'),
-        },
+    ThrottlerModule.forRoot([
+      { name: 'short', ttl: 1000, limit: 10 },
+      { name: 'medium', ttl: 10_000, limit: 50 },
+      { name: 'long', ttl: 60_000, limit: 200 },
+    ]),
+
+    MailerModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => {
+        const mailPort = Number(configService.get('MAIL_PORT', 587));
+        const mailUser = configService.get<string>('MAIL_USER');
+        const mailPass = configService.get<string>('MAIL_PASS');
+        const mailHost = configService.get<string>('MAIL_HOST', 'smtp.gmail.com');
+        const mailFrom = configService.get<string>('MAIL_FROM', 'noreply@flyingduchess.com');
+
+        return {
+          transport: {
+            host: mailHost,
+            port: mailPort,
+            secure: mailPort === 465,
+            auth: mailUser && mailPass ? { user: mailUser, pass: mailPass } : undefined,
+          },
+          defaults: { from: `"Whiskarz Pet-Sitting" <${mailFrom}>` },
+          template: {
+            dir:
+              process.env.NODE_ENV === 'production'
+                ? join(__dirname, 'users', 'templates')
+                : join(process.cwd(), 'src', 'users', 'templates'),
+            adapter: new HandlebarsAdapter(),
+            options: { strict: true },
+          },
+        };
       },
-      defaults: {
-        from: `"Whiskarz Pet-Sitting" <${configService.get('MAIL_FROM', 'noreply@flyingduchess.com')}>`,
-      },
-      template: {
-        dir: process.env.NODE_ENV === 'production' 
-          ? join(__dirname, 'users', 'templates')
-          : join(process.cwd(), 'src', 'users', 'templates'),
-        adapter: new HandlebarsAdapter(),
-        options: {
-          strict: true,
-        },
-      },
-    };
-  },
-  inject: [ConfigService],
-}),
-    
-    // Feature modules
+      inject: [ConfigService],
+    }),
+
     AuthModule,
     UsersModule,
     PetsModule,
@@ -95,8 +97,6 @@ import { HealthController } from './health/health.controller';
     EmailModule,
   ],
   controllers: [HealthController],
-  providers: [
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
-  ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

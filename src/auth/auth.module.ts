@@ -15,12 +15,19 @@ import { JwtStrategy } from './jwt.strategy';
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
-        signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '24h',
-        },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const secret = configService.get<string>('JWT_SECRET');
+        if (!secret || secret.length < 16) {
+          throw new Error(
+            'JWT_SECRET is missing or too short (min 16 characters). Refusing to start.',
+          );
+        }
+        const expiresIn = configService.get<string>('JWT_EXPIRES_IN') || '24h';
+        return {
+          secret,
+          signOptions: { expiresIn } as any,
+        };
+      },
       inject: [ConfigService],
     }),
   ],
