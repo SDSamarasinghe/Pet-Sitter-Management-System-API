@@ -102,16 +102,22 @@ export class EmailService {
   /**
    * 📧 STEP 4: Send booking rejected emails (Client + Admin)
    */
-  async sendBookingRejectedEmails(booking: any, client: any, rejectionReason?: string): Promise<void> {
+  async sendBookingRejectedEmails(
+    booking: any,
+    client: any,
+    rejectionReason?: string,
+    rangeStartDate?: Date,
+    rangeEndDate?: Date,
+  ): Promise<void> {
     try {
       console.log(`📧 Sending booking rejected emails for booking ${booking._id}`);
-      
+
       // Send to client
-      await this.sendClientBookingRejectedEmail(booking, client, rejectionReason);
-      
+      await this.sendClientBookingRejectedEmail(booking, client, rejectionReason, rangeStartDate, rangeEndDate);
+
       // Send to admin
-      await this.sendAdminBookingRejectedEmail(booking, client, rejectionReason);
-      
+      await this.sendAdminBookingRejectedEmail(booking, client, rejectionReason, rangeStartDate, rangeEndDate);
+
       console.log(`✅ Booking rejected emails sent successfully for booking ${booking._id}`);
     } catch (error) {
       console.error(`❌ Failed to send booking rejected emails for booking ${booking._id}:`, error);
@@ -406,9 +412,15 @@ export class EmailService {
   /**
    * Client: Booking rejected
    */
-  private async sendClientBookingRejectedEmail(booking: any, client: any, rejectionReason?: string): Promise<void> {
-    const startDate = new Date(booking.startDate).toLocaleDateString();
-    const endDate = new Date(booking.endDate).toLocaleDateString();
+  private async sendClientBookingRejectedEmail(
+    booking: any,
+    client: any,
+    rejectionReason?: string,
+    rangeStartDate?: Date,
+    rangeEndDate?: Date,
+  ): Promise<void> {
+    const startDate = (rangeStartDate ?? new Date(booking.startDate)).toLocaleDateString();
+    const endDate = (rangeEndDate ?? new Date(booking.endDate)).toLocaleDateString();
 
     await this.mailerService.sendMail({
       to: client.email,
@@ -926,9 +938,16 @@ export class EmailService {
   /**
    * Admin: Booking rejected notification
    */
-  private async sendAdminBookingRejectedEmail(booking: any, client: any, rejectionReason?: string): Promise<void> {
+  private async sendAdminBookingRejectedEmail(
+    booking: any,
+    client: any,
+    rejectionReason?: string,
+    rangeStartDate?: Date,
+    rangeEndDate?: Date,
+  ): Promise<void> {
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@flyingduchess.com';
-    const startDate = new Date(booking.startDate).toLocaleDateString();
+    const startDate = (rangeStartDate ?? new Date(booking.startDate)).toLocaleDateString();
+    const endDate = rangeEndDate ? rangeEndDate.toLocaleDateString() : null;
 
     await this.mailerService.sendMail({
       to: adminEmail,
@@ -959,7 +978,7 @@ export class EmailService {
               <div class="booking-details">
                 <h3>📋 Rejected Booking Details</h3>
                 <p><strong>Client:</strong> ${client.firstName} ${client.lastName} (${client.email})</p>
-                <p><strong>Service Dates:</strong> ${startDate}</p>
+                <p><strong>Service Dates:</strong> ${endDate && endDate !== startDate ? `${startDate} → ${endDate}` : startDate}</p>
                 <p><strong>Amount:</strong> $${booking.totalAmount}</p>
                 <p><strong>Booking ID:</strong> ${booking._id}</p>
                 <p><strong>Status:</strong> REJECTED</p>

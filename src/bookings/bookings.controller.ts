@@ -379,6 +379,30 @@ export class BookingsController {
   }
 
   /**
+   * PUT /bookings/group/:groupId/payment-status - Bulk update payment status for a booking group (admin only)
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Put('group/:groupId/payment-status')
+  async updateGroupPaymentStatus(
+    @Param('groupId') groupId: string,
+    @Body() body: { paymentStatus: string },
+    @Request() req,
+  ) {
+    if (!groupId || groupId.trim() === '') {
+      throw new BadRequestException('Group ID is required');
+    }
+    if (!body?.paymentStatus) {
+      throw new BadRequestException('paymentStatus is required');
+    }
+    return this.bookingsService.updateGroupPaymentStatus(
+      groupId,
+      body.paymentStatus,
+      req.user.userId,
+    );
+  }
+
+  /**
    * PUT /bookings/group/:groupId/assign-sitter - Bulk assign sitter for a booking group (admin only)
    */
   @UseGuards(JwtAuthGuard, RolesGuard)

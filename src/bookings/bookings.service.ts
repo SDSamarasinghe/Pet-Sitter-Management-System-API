@@ -1096,8 +1096,25 @@ export class BookingsService {
     if (status === 'cancelled') {
       const firstBooking = bookings[0] as any;
       if (originalStatuses.some((s) => s !== 'cancelled')) {
+        // Compute the group's full date range so the email reflects every day in the booking,
+        // not just the first day's record. This is what makes a 4-day group send one email
+        // covering all four days, rather than one per day.
+        const groupStart = bookings.reduce(
+          (min, b) => (new Date(b.startDate) < new Date(min) ? b.startDate : min),
+          bookings[0].startDate,
+        );
+        const groupEnd = bookings.reduce(
+          (max, b) => (new Date(b.endDate) > new Date(max) ? b.endDate : max),
+          bookings[0].endDate,
+        );
         try {
-          await this.emailService.sendBookingRejectedEmails(firstBooking, firstBooking.userId);
+          await this.emailService.sendBookingRejectedEmails(
+            firstBooking,
+            firstBooking.userId,
+            undefined,
+            groupStart,
+            groupEnd,
+          );
         } catch (error) {
           console.error('Failed to send group rejection email:', (error as Error)?.message || error);
         }
@@ -1119,6 +1136,72 @@ export class BookingsService {
     }
 
     return { modifiedCount: result.modifiedCount, status };
+  }
+
+  /**
+   * Bulk-update payment status for every booking sharing a bookingGroupId (admin only).
+   * Sends one payment-confirmed email per group when transitioning to 'paid'.
+   */
+  async updateGroupPaymentStatus(
+    bookingGroupId: string,
+    paymentStatus: string,
+    adminUserId: string,
+  ): Promise<{ modifiedCount: number; paymentStatus: string }> {
+    const allowed = ['pending', 'partial', 'paid', 'refunded'];
+    if (!allowed.includes(paymentStatus)) {
+      throw new BadRequestException('Invalid payment status');
+    }
+
+    const bookings = await this.bookingModel
+      .find({ bookingGroupId })
+      .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
+      .populate('sitterId', 'firstName lastName email')
+      .exec();
+
+    if (bookings.length === 0) {
+      throw new NotFoundException('No bookings found for this group');
+    }
+
+    const wasAlreadyPaid = bookings.every((b) => b.paymentStatus === 'paid');
+    const result = await this.bookingModel
+      .updateMany({ bookingGroupId }, { $set: { paymentStatus } })
+      .exec();
+
+    // Fire one payment-confirmed email per group when newly paid
+    if (paymentStatus === 'paid' && !wasAlreadyPaid) {
+      const anchor = bookings[0] as any;
+      try {
+        await this.emailService.sendBookingConfirmedPaidEmails(
+          anchor,
+          anchor.userId,
+          anchor.sitterId,
+        );
+      } catch (error) {
+        console.error(
+          'Failed to send group paid confirmation email:',
+          (error as Error)?.message || error,
+        );
+      }
+    }
+
+    try {
+      await this.activityLogService.log(
+        adminUserId,
+        'Booking group payment status updated',
+        'booking',
+        `Updated ${result.modifiedCount} bookings in group ${bookingGroupId} payment to ${paymentStatus}`,
+        { bookingGroupId, paymentStatus },
+        bookingGroupId,
+        'booking',
+      );
+    } catch (error) {
+      console.error(
+        'Failed to write group payment status activity log:',
+        (error as Error)?.message || error,
+      );
+    }
+
+    return { modifiedCount: result.modifiedCount, paymentStatus };
   }
 
   /**
