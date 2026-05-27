@@ -143,6 +143,12 @@ export class PetsService {
     }
 
     // Only allow pet owner or admin to update pet
+    if (pet.userId.toString() !== currentUserId && currentUserRole !== 'admin') {
+      throw new ForbiddenException('You can only update your own pets');
+    }
+
+    console.log('Update data received:', updateData);
+    console.log('Fields being updated:', Object.keys(updateData));
 
     // Handle new pet image upload
     if (petImage) {
@@ -161,6 +167,7 @@ export class PetsService {
       updateData.photo = await this.azureBlobService.uploadFile(petImage, fileName);
     }
 
+    console.log('Final data to save:', updateData);
     const updatedPet = await this.petModel
       .findByIdAndUpdate(petId, updateData, { new: true })
       .populate('userId', 'email')

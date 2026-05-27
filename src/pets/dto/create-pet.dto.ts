@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsUrl, IsOptional, IsEnum, IsNumber, Matches } from 'class-validator';
+import { IsString, IsNotEmpty, IsUrl, IsOptional, IsEnum, IsNumber, IsBoolean, Matches } from 'class-validator';
 
 export class CreatePetDto {
   @IsString()
@@ -61,6 +61,10 @@ export class CreatePetDto {
   @IsOptional()
   vaccinations?: string; // Vaccination history
 
+  @IsBoolean()
+  @IsOptional()
+  currentOnVaccines?: boolean;
+
   @IsString()
   @IsOptional()
   medications?: string; // Current medications
@@ -88,6 +92,14 @@ export class CreatePetDto {
   @IsString()
   @IsOptional()
   careInstructions?: string; // Specific care instructions
+
+  @IsString()
+  @IsOptional()
+  feedingSchedule?: string; // Pet feeding schedule
+
+  @IsString()
+  @IsOptional()
+  exerciseRequirements?: string; // Pet exercise requirements
 
   @IsString()
   @IsOptional()

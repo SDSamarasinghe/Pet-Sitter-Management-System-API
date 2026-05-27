@@ -80,6 +80,15 @@ export class Pet {
   @Prop()
   careInstructions: string; // Specific care instructions
 
+  @Prop()
+  currentOnVaccines: boolean; // Whether pet is current on vaccines
+
+  @Prop()
+  feedingSchedule: string; // Pet feeding schedule
+
+  @Prop()
+  exerciseRequirements: string; // Pet exercise requirements
+
   @Prop({ required: true })
   info: string; // General pet information and special needs
 

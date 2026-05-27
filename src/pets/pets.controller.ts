@@ -97,6 +97,8 @@ export class PetsController {
     @Request() req
   ) {
     const currentUser = req.user;
+    console.log('Received update data:', updateData);
+    console.log('petImage:', petImage ? 'present' : 'missing');
     return this.petsService.update(id, updateData, currentUser.userId, currentUser.role, petImage);
   }
 
