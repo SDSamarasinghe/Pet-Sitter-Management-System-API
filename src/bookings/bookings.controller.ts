@@ -21,6 +21,7 @@ import { ServiceInquiryDto } from './dto/service-inquiry.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { isPaginatedRequest } from '../common/pagination';
 
 @Controller('bookings')
 export class BookingsController {
@@ -249,6 +250,48 @@ export class BookingsController {
   }
 
   /**
+   * GET /bookings/user/:userId/grouped - Get a user's bookings grouped by bookingGroupId.
+   * Users can view their own grouped bookings, admins can view any user's.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Get('user/:userId/grouped')
+  async findGroupedByUserId(
+    @Param('userId') userId: string,
+    @Query() query: any,
+    @Request() req,
+  ) {
+    const currentUser = req.user;
+    if (!userId || userId.trim() === '') {
+      throw new BadRequestException('User ID is required');
+    }
+    // Users can only view their own bookings unless they are admin
+    if (userId !== currentUser.userId && currentUser.role !== 'admin') {
+      userId = currentUser.userId;
+    }
+    return this.bookingsService.findAllGrouped({ ...query, userId });
+  }
+
+  /**
+   * GET /bookings/sitter/:sitterId/grouped - Get a sitter's assigned bookings grouped.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Get('sitter/:sitterId/grouped')
+  async findGroupedBySitterId(
+    @Param('sitterId') sitterId: string,
+    @Query() query: any,
+    @Request() req,
+  ) {
+    const currentUser = req.user;
+    if (!sitterId || sitterId.trim() === '') {
+      throw new BadRequestException('Sitter ID is required');
+    }
+    if (sitterId !== currentUser.userId && currentUser.role !== 'admin') {
+      sitterId = currentUser.userId;
+    }
+    return this.bookingsService.findAllGrouped({ ...query, sitterId });
+  }
+
+  /**
    * GET /bookings/user/:userId - Get user's bookings
    * Users can view their own bookings, admins can view any user's bookings
    */
@@ -256,17 +299,17 @@ export class BookingsController {
   @Get('user/:userId')
   async findByUserId(@Param('userId') userId: string, @Request() req) {
     const currentUser = req.user;
-    
+
     // Validate userId parameter
     if (!userId || userId.trim() === '') {
       throw new BadRequestException('User ID is required');
     }
-    
+
     // Users can only view their own bookings unless they are admin
     if (userId !== currentUser.userId && currentUser.role !== 'admin') {
       userId = currentUser.userId; // Override to current user's ID
     }
-    
+
     return this.bookingsService.findByUserId(userId);
   }
 
@@ -298,8 +341,79 @@ export class BookingsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Get()
-  async findAll() {
+  async findAll(@Query() query: any) {
+    if (isPaginatedRequest(query)) {
+      return this.bookingsService.findAllPaginated(query);
+    }
     return this.bookingsService.findAll();
+  }
+
+  /**
+   * GET /bookings/grouped - Get all bookings grouped by bookingGroupId (admin only)
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Get('grouped')
+  async findAllGrouped(@Query() query: any) {
+    return this.bookingsService.findAllGrouped(query);
+  }
+
+  /**
+   * PUT /bookings/group/:groupId/status - Bulk update status for a booking group (admin only)
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Put('group/:groupId/status')
+  async updateGroupStatus(
+    @Param('groupId') groupId: string,
+    @Body() body: { status: string },
+    @Request() req,
+  ) {
+    if (!groupId || groupId.trim() === '') {
+      throw new BadRequestException('Group ID is required');
+    }
+    if (!body?.status) {
+      throw new BadRequestException('status is required');
+    }
+    return this.bookingsService.updateGroupStatus(groupId, body.status, req.user.userId);
+  }
+
+  /**
+   * PUT /bookings/group/:groupId/assign-sitter - Bulk assign sitter for a booking group (admin only)
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Put('group/:groupId/assign-sitter')
+  async assignSitterToGroup(
+    @Param('groupId') groupId: string,
+    @Body('sitterId') sitterId: string,
+    @Request() req,
+  ) {
+    if (!groupId || groupId.trim() === '') {
+      throw new BadRequestException('Group ID is required');
+    }
+    if (!sitterId || sitterId.trim() === '') {
+      throw new BadRequestException('Sitter ID is required');
+    }
+    return this.bookingsService.assignSitterToGroup(groupId, sitterId, req.user.userId);
+  }
+
+  /**
+   * GET /bookings/:id/group-detail - Get the booking-group object containing this booking.
+   * Returns the full group view (all day records) when the booking has a bookingGroupId,
+   * otherwise a single-item group.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Get(':id/group-detail')
+  async getGroupDetail(@Param('id') id: string, @Request() req) {
+    if (!id || id.trim() === '') {
+      throw new BadRequestException('Booking ID is required');
+    }
+    return this.bookingsService.getGroupDetailForBooking(
+      id,
+      req.user.userId,
+      req.user.role,
+    );
   }
 
   /**
@@ -313,7 +427,7 @@ export class BookingsController {
     if (!id || id.trim() === '') {
       throw new BadRequestException('Booking ID is required');
     }
-    
+
     const currentUser = req.user;
     return this.bookingsService.findById(id, currentUser.userId, currentUser.role);
   }

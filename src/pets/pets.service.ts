@@ -7,6 +7,13 @@ import { PetMedical, PetMedicalDocument } from './schemas/pet-medical.schema';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { AzureBlobService } from '../azure-blob/azure-blob.service';
 import { ActivityLogService } from '../activity-log/activity-log.service';
+import {
+  PaginationQuery,
+  PaginatedResult,
+  parsePagination,
+  buildPaginatedResult,
+  escapeRegex,
+} from '../common/pagination';
 
 @Injectable()
 export class PetsService {
@@ -23,6 +30,32 @@ export class PetsService {
    */
   async findAll(): Promise<Pet[]> {
     return this.petModel.find().populate('userId', 'email').exec();
+  }
+
+  /**
+   * Paginated pets list with name/type/breed search (admin).
+   */
+  async findAllPaginated(query: PaginationQuery): Promise<PaginatedResult<any>> {
+    const { page, limit, skip, search, sortBy, sortOrder } = parsePagination(query);
+    const filter: any = {};
+    if (search) {
+      const regex = new RegExp(escapeRegex(search), 'i');
+      filter.$or = [{ name: regex }, { type: regex }, { breed: regex }];
+    }
+    const sort: any = sortBy ? { [sortBy]: sortOrder } : { createdAt: -1 };
+
+    const [docs, total] = await Promise.all([
+      this.petModel
+        .find(filter)
+        .populate('userId', 'email firstName lastName')
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.petModel.countDocuments(filter).exec(),
+    ]);
+
+    return buildPaginatedResult(docs, total, page, limit);
   }
 
   /**

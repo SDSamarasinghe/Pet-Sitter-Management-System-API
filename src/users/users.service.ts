@@ -14,6 +14,13 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AzureBlobService } from '../azure-blob/azure-blob.service';
 import { ActivityLogService } from '../activity-log/activity-log.service';
+import {
+  PaginationQuery,
+  PaginatedResult,
+  parsePagination,
+  buildPaginatedResult,
+  escapeRegex,
+} from '../common/pagination';
 
 @Injectable()
 export class UsersService {
@@ -38,6 +45,36 @@ export class UsersService {
       .find({ role: 'sitter' })
       .select('-password') // Exclude password from results
       .exec();
+  }
+
+  /**
+   * Paginated sitters list with optional text search and status filter.
+   */
+  async findSittersPaginated(
+    query: PaginationQuery & { status?: string },
+  ): Promise<PaginatedResult<any>> {
+    const { page, limit, skip, search, sortBy, sortOrder } = parsePagination(query);
+    const filter: any = { role: 'sitter' };
+    if (query.status) filter.status = query.status;
+    if (search) {
+      const regex = new RegExp(escapeRegex(search), 'i');
+      filter.$or = [
+        { firstName: regex },
+        { lastName: regex },
+        { email: regex },
+        { phoneNumber: regex },
+        { cellPhoneNumber: regex },
+      ];
+    }
+
+    const sort: any = sortBy ? { [sortBy]: sortOrder } : { createdAt: -1 };
+
+    const [docs, total] = await Promise.all([
+      this.userModel.find(filter).select('-password').sort(sort).skip(skip).limit(limit).exec(),
+      this.userModel.countDocuments(filter).exec(),
+    ]);
+
+    return buildPaginatedResult(docs.map((d) => d.toObject()), total, page, limit);
   }
 
   /**
@@ -82,6 +119,75 @@ export class UsersService {
       (client as any).formStatus = (requiredProfileFields && hasKeySecurity && hasPet) ? 'form complete' : 'not complete';
     }
     return clients;
+  }
+
+  /**
+   * Paginated clients list with text search, status filter, formStatus filter.
+   * formStatus is computed; filtering happens post-fetch on the page slice.
+   */
+  async findClientsPaginated(
+    query: PaginationQuery & { status?: string; formStatus?: string },
+  ): Promise<PaginatedResult<any>> {
+    const { page, limit, skip, search, sortBy, sortOrder } = parsePagination(query);
+    const filter: any = { role: 'client' };
+    if (query.status) filter.status = query.status;
+    if (search) {
+      const regex = new RegExp(escapeRegex(search), 'i');
+      filter.$or = [
+        { firstName: regex },
+        { lastName: regex },
+        { email: regex },
+        { phoneNumber: regex },
+        { cellPhoneNumber: regex },
+      ];
+    }
+
+    const sort: any = sortBy ? { [sortBy]: sortOrder } : { createdAt: -1 };
+
+    const [docs, total] = await Promise.all([
+      this.userModel.find(filter).select('-password').sort(sort).skip(skip).limit(limit).exec(),
+      this.userModel.countDocuments(filter).exec(),
+    ]);
+
+    // Compute formStatus per row
+    const enriched = await Promise.all(
+      docs.map(async (client) => {
+        const requiredProfileFields = Boolean(
+          client.firstName &&
+            client.lastName &&
+            client.cellPhoneNumber &&
+            client.homePhoneNumber &&
+            client.address &&
+            client.zipCode &&
+            client.emergencyContactFirstName &&
+            client.emergencyContactLastName &&
+            client.emergencyContactCellPhone &&
+            client.keyHandlingMethod &&
+            client.parkingForSitter &&
+            client.videoSurveillance &&
+            client.outOfBoundAreas &&
+            client.cleaningSupplyLocation &&
+            client.broomDustpanLocation,
+        );
+
+        const keySecurity = await this.keySecurityModel.findOne({ clientId: client._id }).exec();
+        const hasKeySecurity = Boolean(keySecurity && keySecurity.lockboxCode);
+
+        const pets = await this.petModel.find({ userId: client._id }).exec();
+        const hasPet = pets.length > 0;
+
+        const formStatus =
+          requiredProfileFields && hasKeySecurity && hasPet ? 'form complete' : 'not complete';
+
+        return { ...client.toObject(), formStatus };
+      }),
+    );
+
+    const filtered = query.formStatus
+      ? enriched.filter((c) => c.formStatus === query.formStatus)
+      : enriched;
+
+    return buildPaginatedResult(filtered, total, page, limit);
   }
 
   async findAllClientsWithPets(): Promise<UserDocument[]> {

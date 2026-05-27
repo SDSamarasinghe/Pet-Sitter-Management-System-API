@@ -14,6 +14,9 @@ export class Booking {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   createdBy: Types.ObjectId; // Who created the booking (client themselves or admin)
 
+  @Prop({ index: true })
+  bookingGroupId: string; // Shared id linking day-bookings created from one multi-day request
+
   @Prop({ required: true })
   startDate: Date; // Service start date
 

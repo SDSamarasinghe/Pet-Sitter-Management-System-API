@@ -1,18 +1,20 @@
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Put, 
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
   Delete,
-  Body, 
-  Param, 
-  UseGuards, 
+  Body,
+  Param,
+  Query,
+  UseGuards,
   Request,
   ForbiddenException,
   BadRequestException,
   UseInterceptors,
   UploadedFile
 } from '@nestjs/common';
+import { isPaginatedRequest } from '../common/pagination';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -34,9 +36,12 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Get('admin/sitters')
-  async getAllSitters() {
+  async getAllSitters(@Query() query: any) {
+    // Paginated mode when page/limit present
+    if (isPaginatedRequest(query)) {
+      return this.usersService.findSittersPaginated(query);
+    }
     const sitters = await this.usersService.findAllSitters();
-    // Remove passwords from response
     return sitters.map(user => {
       const { password, ...result } = user.toObject();
       return result;
@@ -50,9 +55,11 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'sitter')
   @Get('admin/clients')
-  async getAllClients() {
+  async getAllClients(@Query() query: any) {
+    if (isPaginatedRequest(query)) {
+      return this.usersService.findClientsPaginated(query);
+    }
     const clients = await this.usersService.findAllClients();
-    // Remove passwords from response
     return clients.map(user => {
       const { password, ...result } = user.toObject();
       return result;

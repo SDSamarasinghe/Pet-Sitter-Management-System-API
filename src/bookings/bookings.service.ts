@@ -1,6 +1,38 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { randomUUID } from 'crypto';
+import {
+  PaginationQuery,
+  PaginatedResult,
+  parsePagination,
+  buildPaginatedResult,
+  escapeRegex,
+} from '../common/pagination';
+
+// Surcharge percentages applied per-day at booking creation time.
+// Kept in sync with the booking form on the web client.
+const WEEKEND_SURCHARGE_PCT = 15;
+const HOLIDAY_SURCHARGE_PCT = 25;
+const HOLIDAY_MONTH_DAYS = new Set(['01-01', '07-01', '12-25', '12-26']);
+
+function dayCategory(date: Date): 'holiday' | 'weekend' | 'weekday' {
+  const mmdd = `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  if (HOLIDAY_MONTH_DAYS.has(mmdd)) return 'holiday';
+  const dow = date.getDay();
+  if (dow === 0 || dow === 6) return 'weekend';
+  return 'weekday';
+}
+
+function applySurcharge(baseAmount: number, category: 'holiday' | 'weekend' | 'weekday'): number {
+  if (category === 'holiday') {
+    return Math.round(baseAmount * (1 + HOLIDAY_SURCHARGE_PCT / 100));
+  }
+  if (category === 'weekend') {
+    return Math.round(baseAmount * (1 + WEEKEND_SURCHARGE_PCT / 100));
+  }
+  return baseAmount;
+}
 import { Booking, BookingDocument } from './schemas/booking.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -200,11 +232,12 @@ export class BookingsService {
     console.log(`⏱ Parsed times -> startMinutes=${startMinutes}, endMinutes=${endMinutes}, adjustedEndMinutes=${adjustedEndMinutes}`);
     
     const bookingIds = [];
-    
+    const bookingGroupId = daysDiff > 1 ? randomUUID() : undefined;
+
     // Create a separate booking for each day in the range applying parsed times
     // Use business timezone (America/Toronto) so all users see consistent clock times
     const businessTimezone = serviceInquiryDto.timeZone || 'America/Toronto';
-    
+
     for (let i = 0; i < daysDiff; i++) {
       const dayDate = new Date(startDate.getTime() + i * MS_PER_DAY);
       const dateStr = dayDate.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -235,6 +268,7 @@ export class BookingsService {
       const booking = new this.bookingModel({
         userId: user._id,
         createdBy: user._id, // Service inquiry is created by the client themselves
+        bookingGroupId,
         startDate: startDateTime,
         endDate: endDateTime,
         serviceType: cleanServiceType,
@@ -320,34 +354,42 @@ export class BookingsService {
     // Calculate number of days in the range (inclusive)
     const daysDiff = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     const bookingsToCreate = [];
-    
+    const bookingGroupId = daysDiff > 1 ? randomUUID() : undefined;
+    // Treat the incoming totalAmount as the per-day weekday rate (rate × pets);
+    // each day's record gets a surcharged value based on its own date category.
+    const basePerDay = createBookingDto.totalAmount;
+
     // Create a booking for each day in the range
     for (let i = 0; i < daysDiff; i++) {
       const currentDate = new Date(startDate.getTime() + (i * 24 * 60 * 60 * 1000));
-      
+
       // Set end date to the same day (for daily bookings, start and end are the same)
       const currentEndDate = new Date(currentDate);
       currentEndDate.setHours(23, 59, 59, 999); // End of the same day
-      
+
+      const dayAmount = applySurcharge(basePerDay, dayCategory(currentDate));
+
       const booking = new this.bookingModel({
         ...createBookingDto,
         userId: new Types.ObjectId(userId),
         createdBy: new Types.ObjectId(userId),
-        sitterId: (createBookingDto.sitterId && createBookingDto.sitterId.trim() !== '') 
-          ? new Types.ObjectId(createBookingDto.sitterId) 
+        bookingGroupId,
+        sitterId: (createBookingDto.sitterId && createBookingDto.sitterId.trim() !== '')
+          ? new Types.ObjectId(createBookingDto.sitterId)
           : undefined,
         startDate: currentDate,
         endDate: currentEndDate,
+        totalAmount: dayAmount,
         status: 'pending',
         paymentStatus: 'pending',
       });
-      
+
       bookingsToCreate.push(booking);
     }
-    
+
     // Save all bookings
     const savedBookings = await this.bookingModel.insertMany(bookingsToCreate);
-    
+
     // Send email notification for the first booking (to avoid spam)
     if (savedBookings.length > 0) {
       const populatedBooking = await this.bookingModel
@@ -359,14 +401,14 @@ export class BookingsService {
       if (populatedBooking) {
         // Pass the original date range for multi-day bookings
         await this.sendPendingBookingNotifications(populatedBooking, startDate, endDate);
-        
+
         // If sitter is already assigned, send sitter assignment notification
         if (populatedBooking.sitterId) {
           await this.sendSitterAssignmentNotification(populatedBooking, startDate, endDate);
         }
       }
     }
-    
+
     // Return the first booking as reference
     try {
       await this.activityLogService.log(
@@ -419,28 +461,34 @@ export class BookingsService {
     // Calculate number of days in the range (inclusive)
     const daysDiff = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     const bookingsToCreate = [];
-    
+    const bookingGroupId = daysDiff > 1 ? randomUUID() : undefined;
+    const basePerDay = createBookingAdminDto.totalAmount;
+
     // Create a booking for each day in the range
     for (let i = 0; i < daysDiff; i++) {
       const currentDate = new Date(startDate.getTime() + (i * 24 * 60 * 60 * 1000));
-      
+
       // Set end date to the same day (for daily bookings, start and end are the same)
       const currentEndDate = new Date(currentDate);
       currentEndDate.setHours(23, 59, 59, 999); // End of the same day
-      
+
+      const dayAmount = applySurcharge(basePerDay, dayCategory(currentDate));
+
       const booking = new this.bookingModel({
         ...createBookingAdminDto,
         userId: new Types.ObjectId(createBookingAdminDto.userId),
         createdBy: new Types.ObjectId(adminUserId),
-        sitterId: (createBookingAdminDto.sitterId && createBookingAdminDto.sitterId.trim() !== '') 
-          ? new Types.ObjectId(createBookingAdminDto.sitterId) 
+        bookingGroupId,
+        sitterId: (createBookingAdminDto.sitterId && createBookingAdminDto.sitterId.trim() !== '')
+          ? new Types.ObjectId(createBookingAdminDto.sitterId)
           : undefined,
         startDate: currentDate,
         endDate: currentEndDate,
+        totalAmount: dayAmount,
         status: 'pending',
         paymentStatus: 'pending',
       });
-      
+
       bookingsToCreate.push(booking);
     }
     
@@ -856,6 +904,279 @@ export class BookingsService {
   }
 
   /**
+   * Paginated admin bookings list with search + status + date range filter.
+   */
+  async findAllPaginated(
+    query: PaginationQuery & { status?: string; from?: string; to?: string },
+  ): Promise<PaginatedResult<any>> {
+    const { page, limit, skip, search, sortBy, sortOrder } = parsePagination(query);
+    const filter: any = {};
+    if (query.status && query.status !== 'all') filter.status = query.status;
+    if (query.from || query.to) {
+      filter.startDate = {};
+      if (query.from) filter.startDate.$gte = new Date(query.from);
+      if (query.to) filter.startDate.$lte = new Date(query.to);
+    }
+    if (search) {
+      const regex = new RegExp(escapeRegex(search), 'i');
+      filter.$or = [
+        { serviceType: regex },
+        { status: regex },
+        { paymentStatus: regex },
+      ];
+    }
+    const sort: any = sortBy ? { [sortBy]: sortOrder } : { startDate: -1 };
+
+    const [docs, total] = await Promise.all([
+      this.bookingModel
+        .find(filter)
+        .populate('userId', 'email address firstName lastName')
+        .populate('sitterId', 'email firstName lastName')
+        .populate('createdBy', 'email firstName lastName role')
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.bookingModel.countDocuments(filter).exec(),
+    ]);
+
+    return buildPaginatedResult(docs, total, page, limit);
+  }
+
+  /**
+   * Get all bookings grouped by bookingGroupId (admin only).
+   * Multi-day bookings (sharing a bookingGroupId) collapse into one group entry;
+   * single-day bookings appear as their own one-item group.
+   *
+   * Pass `userId` / `sitterId` to scope the groups to a single client or sitter
+   * (used by the client- and sitter-facing bookings pages).
+   */
+  async findAllGrouped(
+    query?: PaginationQuery & { status?: string; userId?: string; sitterId?: string },
+  ): Promise<any[] | PaginatedResult<any>> {
+    const filter: any = {};
+    if (query?.userId) filter.userId = new Types.ObjectId(query.userId);
+    if (query?.sitterId) filter.sitterId = new Types.ObjectId(query.sitterId);
+
+    const bookings = await this.bookingModel
+      .find(filter)
+      .populate('userId', 'email address firstName lastName')
+      .populate('sitterId', 'email firstName lastName profilePicture')
+      .populate('createdBy', 'email firstName lastName role')
+      .sort({ startDate: 1 })
+      .exec();
+
+    const groups = new Map<string, any>();
+
+    for (const b of bookings as any[]) {
+      // Standalone bookings get their own group keyed by their _id
+      const key = b.bookingGroupId ? `group:${b.bookingGroupId}` : `single:${b._id.toString()}`;
+
+      const existing = groups.get(key);
+      if (!existing) {
+        groups.set(key, {
+          bookingGroupId: b.bookingGroupId || null,
+          isGrouped: Boolean(b.bookingGroupId),
+          bookings: [b],
+          userId: b.userId,
+          sitterId: b.sitterId,
+          serviceType: b.serviceType,
+          startDate: b.startDate,
+          endDate: b.endDate,
+          totalAmount: b.totalAmount || 0,
+          statuses: [b.status],
+          paymentStatuses: [b.paymentStatus],
+        });
+      } else {
+        existing.bookings.push(b);
+        existing.totalAmount += b.totalAmount || 0;
+        existing.statuses.push(b.status);
+        existing.paymentStatuses.push(b.paymentStatus);
+        if (new Date(b.startDate) < new Date(existing.startDate)) existing.startDate = b.startDate;
+        if (new Date(b.endDate) > new Date(existing.endDate)) existing.endDate = b.endDate;
+        // Prefer a populated sitter if any day has one
+        if (!existing.sitterId && b.sitterId) existing.sitterId = b.sitterId;
+      }
+    }
+
+    const MS_PER_DAY = 1000 * 60 * 60 * 24;
+    let groupRows = Array.from(groups.values()).map((g) => {
+      const uniqueStatuses = Array.from(new Set(g.statuses));
+      const uniquePayments = Array.from(new Set(g.paymentStatuses));
+      // Day count = max of the record count and the calendar span of the group
+      // (covers legacy single-record bookings that span multiple days, as well as
+      // multi-day groups created with a shared bookingGroupId).
+      const span = g.startDate && g.endDate
+        ? Math.max(
+            1,
+            Math.round(
+              (new Date(g.endDate).setHours(0, 0, 0, 0) -
+                new Date(g.startDate).setHours(0, 0, 0, 0)) /
+                MS_PER_DAY,
+            ) + 1,
+          )
+        : 1;
+      const dayCount = Math.max(g.bookings.length, span);
+      return {
+        ...g,
+        dayCount,
+        status: uniqueStatuses.length === 1 ? uniqueStatuses[0] : 'mixed',
+        paymentStatus: uniquePayments.length === 1 ? uniquePayments[0] : 'mixed',
+      };
+    });
+
+    // Sort newest first by group startDate for stable pagination
+    groupRows.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+
+    if (!query || (query.page === undefined && query.limit === undefined)) {
+      return groupRows;
+    }
+
+    // Apply optional search + status filter, then paginate
+    const search = (query.search ?? '').toString().trim().toLowerCase();
+    const statusFilter = query.status && query.status !== 'all' ? query.status : null;
+
+    if (statusFilter) {
+      groupRows = groupRows.filter((g) => g.status === statusFilter);
+    }
+    if (search) {
+      groupRows = groupRows.filter((g) => {
+        const u = g.userId as any;
+        const s = g.sitterId as any;
+        const clientName = u
+          ? `${u.firstName ?? ''} ${u.lastName ?? ''} ${u.email ?? ''}`.toLowerCase()
+          : '';
+        const sitterName = s
+          ? `${s.firstName ?? ''} ${s.lastName ?? ''} ${s.email ?? ''}`.toLowerCase()
+          : '';
+        return (
+          (g.serviceType ?? '').toLowerCase().includes(search) ||
+          clientName.includes(search) ||
+          sitterName.includes(search) ||
+          (g.status ?? '').toLowerCase().includes(search)
+        );
+      });
+    }
+
+    const { page, limit, skip } = parsePagination(query);
+    const total = groupRows.length;
+    const slice = groupRows.slice(skip, skip + limit);
+    return buildPaginatedResult(slice, total, page, limit);
+  }
+
+  /**
+   * Bulk-update status for every booking sharing a bookingGroupId (admin only).
+   */
+  async updateGroupStatus(
+    bookingGroupId: string,
+    status: string,
+    adminUserId: string,
+  ): Promise<{ modifiedCount: number; status: string }> {
+    const allowed = ['pending', 'confirmed', 'assigned', 'in_progress', 'completed', 'cancelled'];
+    if (!allowed.includes(status)) {
+      throw new BadRequestException('Invalid status');
+    }
+
+    const bookings = await this.bookingModel
+      .find({ bookingGroupId })
+      .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
+      .populate('sitterId', 'firstName lastName email')
+      .exec();
+
+    if (bookings.length === 0) {
+      throw new NotFoundException('No bookings found for this group');
+    }
+
+    const originalStatuses = bookings.map((b) => b.status);
+    const result = await this.bookingModel
+      .updateMany({ bookingGroupId }, { $set: { status } })
+      .exec();
+
+    // Fire rejection emails once per group if moving to cancelled
+    if (status === 'cancelled') {
+      const firstBooking = bookings[0] as any;
+      if (originalStatuses.some((s) => s !== 'cancelled')) {
+        try {
+          await this.emailService.sendBookingRejectedEmails(firstBooking, firstBooking.userId);
+        } catch (error) {
+          console.error('Failed to send group rejection email:', (error as Error)?.message || error);
+        }
+      }
+    }
+
+    try {
+      await this.activityLogService.log(
+        adminUserId,
+        'Booking group status updated',
+        'booking',
+        `Updated ${result.modifiedCount} bookings in group ${bookingGroupId} to ${status}`,
+        { bookingGroupId, status },
+        bookingGroupId,
+        'booking',
+      );
+    } catch (error) {
+      console.error('Failed to write group status activity log:', (error as Error)?.message || error);
+    }
+
+    return { modifiedCount: result.modifiedCount, status };
+  }
+
+  /**
+   * Bulk-assign sitter to every booking in a group (admin only).
+   */
+  async assignSitterToGroup(
+    bookingGroupId: string,
+    sitterId: string,
+    adminUserId: string,
+  ): Promise<{ modifiedCount: number }> {
+    const bookings = await this.bookingModel.find({ bookingGroupId }).exec();
+    if (bookings.length === 0) {
+      throw new NotFoundException('No bookings found for this group');
+    }
+
+    const result = await this.bookingModel
+      .updateMany(
+        { bookingGroupId },
+        { $set: { sitterId: new Types.ObjectId(sitterId), status: 'assigned' } },
+      )
+      .exec();
+
+    // Send one assignment email for the group
+    const populated = await this.bookingModel
+      .findOne({ bookingGroupId })
+      .populate('userId', 'firstName lastName email phoneNumber address emergencyContact')
+      .populate('sitterId', 'firstName lastName email')
+      .exec();
+    if (populated) {
+      const groupStart = bookings.reduce(
+        (min, b) => (new Date(b.startDate) < new Date(min) ? b.startDate : min),
+        bookings[0].startDate,
+      );
+      const groupEnd = bookings.reduce(
+        (max, b) => (new Date(b.endDate) > new Date(max) ? b.endDate : max),
+        bookings[0].endDate,
+      );
+      await this.sendSitterAssignmentNotification(populated, groupStart, groupEnd);
+    }
+
+    try {
+      await this.activityLogService.log(
+        adminUserId,
+        'Sitter assigned to booking group',
+        'booking',
+        `Assigned sitter ${sitterId} to group ${bookingGroupId} (${result.modifiedCount} bookings)`,
+        { bookingGroupId, sitterId },
+        bookingGroupId,
+        'booking',
+      );
+    } catch (error) {
+      console.error('Failed to write group assign activity log:', (error as Error)?.message || error);
+    }
+
+    return { modifiedCount: result.modifiedCount };
+  }
+
+  /**
    * Get all bookings (admin only)
    */
   async findAll(): Promise<Booking[]> {
@@ -866,6 +1187,119 @@ export class BookingsService {
       .populate('createdBy', 'email firstName lastName role')
       .sort({ startDate: -1 })
       .exec();
+  }
+
+  /**
+   * Return the booking-group object for a given booking id.
+   * - If the booking belongs to a multi-day group (bookingGroupId set),
+   *   includes every day record in that group.
+   * - Otherwise returns a single-item group containing just that booking.
+   *
+   * Access control: client can view their own group; sitter can view groups
+   * that include a day assigned to them; admin can view any group.
+   */
+  async getGroupDetailForBooking(
+    bookingId: string,
+    currentUserId: string,
+    currentUserRole: string,
+  ): Promise<any> {
+    const anchor = await this.bookingModel
+      .findById(bookingId)
+      .populate('userId', 'email address emergencyContact firstName lastName')
+      .populate('sitterId', 'email firstName lastName profilePicture')
+      .populate('createdBy', 'email firstName lastName role')
+      .exec();
+    if (!anchor) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    const groupId = (anchor as any).bookingGroupId;
+    const days = groupId
+      ? await this.bookingModel
+          .find({ bookingGroupId: groupId })
+          .populate('userId', 'email address emergencyContact firstName lastName')
+          .populate('sitterId', 'email firstName lastName profilePicture')
+          .populate('createdBy', 'email firstName lastName role')
+          .sort({ startDate: 1 })
+          .exec()
+      : [anchor];
+
+    // Access control — at least one day must be viewable by the current user
+    const isAdmin = currentUserRole === 'admin';
+    const canAccess =
+      isAdmin ||
+      days.some(
+        (d) =>
+          (d.userId as any)?._id?.toString() === currentUserId ||
+          (d.sitterId as any)?._id?.toString() === currentUserId,
+      );
+    if (!canAccess) {
+      throw new ForbiddenException('You can only view your own bookings');
+    }
+
+    let totalAmount = 0;
+    let earliestStart: Date | null = null;
+    let latestEnd: Date | null = null;
+    const statuses: string[] = [];
+    const paymentStatuses: string[] = [];
+
+    for (const d of days) {
+      totalAmount += d.totalAmount || 0;
+      const s = new Date(d.startDate);
+      const e = new Date(d.endDate);
+      if (!earliestStart || s < earliestStart) earliestStart = s;
+      if (!latestEnd || e > latestEnd) latestEnd = e;
+      statuses.push(d.status);
+      paymentStatuses.push(d.paymentStatus);
+    }
+
+    const uniqueStatuses = Array.from(new Set(statuses));
+    const uniquePayments = Array.from(new Set(paymentStatuses));
+
+    const MS_PER_DAY = 1000 * 60 * 60 * 24;
+    const span =
+      earliestStart && latestEnd
+        ? Math.max(
+            1,
+            Math.round(
+              (latestEnd.setHours(0, 0, 0, 0) - earliestStart.setHours(0, 0, 0, 0)) /
+                MS_PER_DAY,
+            ) + 1,
+          )
+        : 1;
+    const dayCount = Math.max(days.length, span);
+
+    return {
+      bookingGroupId: groupId || null,
+      isGrouped: Boolean(groupId),
+      anchorId: bookingId,
+      userId: anchor.userId,
+      sitterId: anchor.sitterId,
+      createdBy: (anchor as any).createdBy,
+      serviceType: anchor.serviceType,
+      numberOfPets: anchor.numberOfPets,
+      petTypes: anchor.petTypes,
+      notes: anchor.notes,
+      adminNotes: anchor.adminNotes,
+      clientNotes: anchor.clientNotes,
+      sitterNotes: anchor.sitterNotes,
+      serviceAddress: anchor.serviceAddress,
+      specialInstructions: anchor.specialInstructions,
+      startDate: earliestStart,
+      endDate: latestEnd,
+      dayCount,
+      totalAmount,
+      status: uniqueStatuses.length === 1 ? uniqueStatuses[0] : 'mixed',
+      paymentStatus: uniquePayments.length === 1 ? uniquePayments[0] : 'mixed',
+      bookings: days.map((d) => ({
+        _id: d._id,
+        startDate: d.startDate,
+        endDate: d.endDate,
+        totalAmount: d.totalAmount,
+        status: d.status,
+        paymentStatus: d.paymentStatus,
+      })),
+    };
   }
 
   /**

@@ -1,18 +1,20 @@
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Put, 
-  Delete, 
-  Body, 
-  Param, 
-  UseGuards, 
-  Request, 
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Request,
   ForbiddenException,
   UseInterceptors,
   UploadedFile,
   Res
 } from '@nestjs/common';
+import { isPaginatedRequest } from '../common/pagination';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { imageMulterOptions } from '../common/upload/image-multer.options';
@@ -33,10 +35,13 @@ export class PetsController {
    * GET /pets - Get all pets (admin only)
    */
   @Get()
-  async findAll(@Request() req) {
+  async findAll(@Request() req, @Query() query: any) {
     const currentUser = req.user;
     if (currentUser.role !== 'admin') {
       throw new ForbiddenException('Only admin can view all pets');
+    }
+    if (isPaginatedRequest(query)) {
+      return this.petsService.findAllPaginated(query);
     }
     return this.petsService.findAll();
   }
