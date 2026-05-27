@@ -33,7 +33,8 @@ export class PetsService {
 
     // Upload pet image if provided
     if (petImage) {
-      photoUrl = await this.azureBlobService.uploadFile(petImage, 'pets');
+      const fileName = this.azureBlobService.generateFileName(petImage.originalname, 'pets');
+      photoUrl = await this.azureBlobService.uploadFile(petImage, fileName);
     }
 
     // Ensure userId is properly converted to ObjectId
@@ -52,8 +53,8 @@ export class PetsService {
         userId,
         'Pet created',
         'pet',
-        `Created pet "${createPetDto.name}" (${createPetDto.species})`,
-        { species: createPetDto.species, breed: createPetDto.breed },
+        `Created pet "${createPetDto.name}" (${createPetDto.type || createPetDto.species || 'Pet'})`,
+        { type: createPetDto.type, species: createPetDto.species, breed: createPetDto.breed },
         savedPet._id.toString(),
         'pet',
       );
@@ -148,14 +149,16 @@ export class PetsService {
       // Delete old image if it exists
       if (pet.photo) {
         try {
-          await this.azureBlobService.deleteFile(pet.photo);
+          const oldFileName = this.azureBlobService.extractFileNameFromUrl(pet.photo);
+          await this.azureBlobService.deleteFile(oldFileName);
         } catch (error) {
           console.log('Could not delete old pet image:', (error as Error)?.message);
         }
       }
       
       // Upload new image
-      updateData.photo = await this.azureBlobService.uploadFile(petImage, 'pets');
+      const fileName = this.azureBlobService.generateFileName(petImage.originalname, 'pets');
+      updateData.photo = await this.azureBlobService.uploadFile(petImage, fileName);
     }
 
     const updatedPet = await this.petModel
@@ -198,14 +201,16 @@ export class PetsService {
     // Delete old photo if it exists
     if (pet.photo) {
       try {
-        await this.azureBlobService.deleteFile(pet.photo);
+        const oldFileName = this.azureBlobService.extractFileNameFromUrl(pet.photo);
+        await this.azureBlobService.deleteFile(oldFileName);
       } catch (error) {
         console.log('Could not delete old pet photo:', (error as Error)?.message);
       }
     }
 
     // Upload new photo
-    const photoUrl = await this.azureBlobService.uploadFile(petImage, 'pets');
+    const fileName = this.azureBlobService.generateFileName(petImage.originalname, 'pets');
+    const photoUrl = await this.azureBlobService.uploadFile(petImage, fileName);
 
     const updatedPet = await this.petModel
       .findByIdAndUpdate(petId, { photo: photoUrl }, { new: true })
@@ -247,7 +252,8 @@ export class PetsService {
     // Delete photo if it exists
     if (pet.photo) {
       try {
-        await this.azureBlobService.deleteFile(pet.photo);
+        const oldFileName = this.azureBlobService.extractFileNameFromUrl(pet.photo);
+        await this.azureBlobService.deleteFile(oldFileName);
       } catch (error) {
         console.log('Could not delete pet photo:', (error as Error)?.message);
       }
@@ -299,7 +305,8 @@ export class PetsService {
     // Delete pet photo if it exists
     if (pet.photo) {
       try {
-        await this.azureBlobService.deleteFile(pet.photo);
+        const fileName = this.azureBlobService.extractFileNameFromUrl(pet.photo);
+        await this.azureBlobService.deleteFile(fileName);
       } catch (error) {
         console.log('Could not delete pet photo:', (error as Error)?.message);
       }
@@ -309,7 +316,8 @@ export class PetsService {
     if (pet.photos && pet.photos.length > 0) {
       for (const photoUrl of pet.photos) {
         try {
-          await this.azureBlobService.deleteFile(photoUrl);
+          const fileName = this.azureBlobService.extractFileNameFromUrl(photoUrl);
+          await this.azureBlobService.deleteFile(fileName);
         } catch (error) {
           console.log('Could not delete pet photo:', (error as Error)?.message);
         }
@@ -323,8 +331,8 @@ export class PetsService {
         currentUserId,
         'Pet deleted',
         'pet',
-        `Deleted pet "${pet.name}" (${pet.species})`,
-        { species: pet.species, breed: pet.breed },
+        `Deleted pet "${pet.name}" (${pet.type || pet.species || 'Pet'})`,
+        { type: pet.type, species: pet.species, breed: pet.breed },
         petId,
         'pet',
       );
