@@ -32,6 +32,55 @@ export class InvoicesController {
   }
 
   /**
+   * GET /invoices - Derived invoice list for admin (one row per booking-group).
+   */
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @Get()
+  async listAllDerived(@Query() query: any) {
+    return this.invoicesService.listDerived(query);
+  }
+
+  /**
+   * GET /invoices/user/:userId - Derived invoice list scoped to a user.
+   * Clients can fetch their own; admins can fetch any.
+   */
+  @Get('user/:userId')
+  async listUserDerived(
+    @Param('userId') userId: string,
+    @Query() query: any,
+    @Request() req,
+  ) {
+    if (userId !== req.user.userId && req.user.role !== 'admin') {
+      userId = req.user.userId;
+    }
+    return this.invoicesService.listDerived({ ...query, userId });
+  }
+
+  /**
+   * GET /invoices/sitter/:sitterId - Derived invoice list scoped to a sitter.
+   */
+  @Get('sitter/:sitterId')
+  async listSitterDerived(
+    @Param('sitterId') sitterId: string,
+    @Query() query: any,
+    @Request() req,
+  ) {
+    if (sitterId !== req.user.userId && req.user.role !== 'admin') {
+      sitterId = req.user.userId;
+    }
+    return this.invoicesService.listDerived({ ...query, sitterId });
+  }
+
+  /**
+   * GET /invoices/derived/:id - Get a single derived invoice (group or single booking)
+   */
+  @Get('derived/:id')
+  async getDerivedById(@Param('id') id: string, @Request() req) {
+    return this.invoicesService.getDerivedById(id, req.user.userId, req.user.role);
+  }
+
+  /**
    * GET /invoices/client/:clientId - Get client's invoices
    */
   @Get('client/:clientId')
