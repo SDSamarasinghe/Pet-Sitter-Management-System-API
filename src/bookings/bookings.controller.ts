@@ -18,6 +18,7 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { CreateBookingAdminDto } from './dto/create-booking-admin.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { ServiceInquiryDto } from './dto/service-inquiry.dto';
+import { CheckSitterAvailabilityDto } from './dto/check-sitter-availability.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -38,27 +39,59 @@ export class BookingsController {
   }
 
   /**
-   * GET /bookings/availability - Check availability for dates
+   * GET /bookings/availability - Check whether a sitter is free for a window
+   *
+   * Authenticated: this reads booking records, which belong to clients.
+   * Only admins see the underlying visits; everyone else gets a yes/no answer
+   * plus the busy windows, with no client or booking identifiers attached.
    */
+  @UseGuards(JwtAuthGuard)
   @Get('availability')
   async checkAvailability(
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
+    @Request() req?,
     @Query('sitterId') sitterId?: string
   ) {
-    // Handle empty string sitterId
-    const validSitterId = sitterId && sitterId.trim() !== '' ? sitterId : undefined;
-    
-    return this.bookingsService.checkAvailability(
+    if (!sitterId || sitterId.trim() === '') {
+      throw new BadRequestException('sitterId is required');
+    }
+
+    const conflicts = await this.bookingsService.checkAvailability(
       new Date(startDate),
       new Date(endDate),
-      validSitterId
+      sitterId.trim()
     );
+
+    if (req?.user?.role === 'admin') {
+      return conflicts;
+    }
+
+    return {
+      isAvailable: conflicts.length === 0,
+      busyWindows: conflicts.map((c) => ({
+        startDate: c.startDate,
+        endDate: c.endDate,
+      })),
+    };
   }
 
   /**
-   * GET /bookings/available-sitters - Get available sitters for dates
+   * POST /bookings/available-sitters - Sitters free for a specific set of visits
+   *
+   * A POST because the visit list is too structured for a query string. This is
+   * the accurate check: the GET variant below only knows about whole days.
    */
+  @UseGuards(JwtAuthGuard)
+  @Post('available-sitters')
+  async getAvailableSittersForVisits(@Body() dto: CheckSitterAvailabilityDto) {
+    return this.bookingsService.getAvailableSittersForVisits(dto);
+  }
+
+  /**
+   * GET /bookings/available-sitters - Get available sitters for whole days
+   */
+  @UseGuards(JwtAuthGuard)
   @Get('available-sitters')
   async getAvailableSitters(
     @Query('startDate') startDate: string,

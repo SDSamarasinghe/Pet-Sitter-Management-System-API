@@ -73,6 +73,9 @@ export class PetCareService {
     }
 
     // Allow pet owner or admin to update care information
+    if (pet.userId.toString() !== currentUserId && currentUserRole !== 'admin') {
+      throw new ForbiddenException('You can only manage care information for your own pets');
+    }
 
     const updatedCare = await this.petCareModel
       .findOneAndUpdate({ petId }, updatePetCareDto, { new: true, upsert: true })
@@ -161,6 +164,9 @@ export class PetCareService {
     }
 
     // Allow pet owner or admin to update medical information
+    if (pet.userId.toString() !== currentUserId && currentUserRole !== 'admin') {
+      throw new ForbiddenException('You can only manage medical information for your own pets');
+    }
 
     const updatedMedical = await this.petMedicalModel
       .findOneAndUpdate({ petId }, updatePetMedicalDto, { new: true, upsert: true })

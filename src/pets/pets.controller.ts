@@ -68,13 +68,14 @@ export class PetsController {
    */
   @Get('user/:userId')
   async findByUserId(@Param('userId') userId: string, @Request() req) {
-    // const currentUser = req.user;
-    
-    // Users can only view their own pets unless they are admin
-    // if (userId !== currentUser.userId && currentUser.role !== 'admin') {
-    //   userId = currentUser.userId; // Override to current user's ID
-    // }
-    
+    const currentUser = req.user;
+
+    // Users can only view their own pets unless they are admin. Refuse rather
+    // than silently substituting the caller's own id, which would hide the bug.
+    if (userId !== currentUser.userId && currentUser.role !== 'admin') {
+      throw new ForbiddenException("You can only view your own pets");
+    }
+
     return this.petsService.findByUserId(userId);
   }
 
