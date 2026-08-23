@@ -15,13 +15,16 @@ export class Booking {
   createdBy: Types.ObjectId; // Who created the booking (client themselves or admin)
 
   @Prop({ index: true })
-  bookingGroupId: string; // Shared id linking day-bookings created from one multi-day request
+  bookingGroupId: string; // Shared id linking every visit created from one booking request
 
   @Prop({ required: true })
-  startDate: Date; // Service start date
+  startDate: Date; // Start of this visit's time window
 
   @Prop({ required: true })
-  endDate: Date; // Service end date
+  endDate: Date; // End of this visit's time window
+
+  @Prop()
+  visitLabel: string; // Optional label for the visit within its day, e.g. 'Morning'
 
   @Prop({ required: true })
   serviceType: string; // e.g., 'daily care', 'overnight', 'walking', etc.

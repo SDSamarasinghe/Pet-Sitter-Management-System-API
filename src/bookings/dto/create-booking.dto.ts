@@ -7,8 +7,13 @@ import {
   IsArray, 
   IsEnum,
   IsMongoId,
-  Min
+  Min,
+  ArrayMinSize,
+  ArrayMaxSize,
+  ValidateNested
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { BookingVisitDto } from './booking-visit.dto';
 
 export class CreateBookingDto {
   @IsDateString()
@@ -63,4 +68,20 @@ export class CreateBookingDto {
   @IsString()
   @IsOptional()
   clientNotes?: string;
+
+  // Explicit per-visit schedule. When present this is authoritative and may
+  // contain more than one visit on the same calendar day; startDate/endDate
+  // are then only the overall range of the request.
+  @IsArray()
+  @IsOptional()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(180)
+  @ValidateNested({ each: true })
+  @Type(() => BookingVisitDto)
+  visitSlots?: BookingVisitDto[];
+
+  // IANA timezone the visit clock times are expressed in (default America/Toronto)
+  @IsString()
+  @IsOptional()
+  timeZone?: string;
 }

@@ -16,12 +16,104 @@ const WEEKEND_SURCHARGE_PCT = 15;
 const HOLIDAY_SURCHARGE_PCT = 25;
 const HOLIDAY_MONTH_DAYS = new Set(['01-01', '07-01', '12-25', '12-26']);
 
-function dayCategory(date: Date): 'holiday' | 'weekend' | 'weekday' {
-  const mmdd = `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  if (HOLIDAY_MONTH_DAYS.has(mmdd)) return 'holiday';
-  const dow = date.getDay();
+// Statuses that still hold time in the calendar and can therefore clash.
+const ACTIVE_BOOKING_STATUSES = ['pending', 'confirmed', 'assigned', 'in_progress'];
+
+// What a non-admin may change on a booking. Everything else — the sitter,
+// the price, the dates, admin notes — is admin-only.
+const SITTER_UPDATABLE_FIELDS = ['status'];
+const CLIENT_UPDATABLE_FIELDS = ['status', 'clientNotes'];
+
+// Statuses each non-admin role may move a booking to.
+const SITTER_SETTABLE_STATUSES = ['in_progress', 'completed'];
+const CLIENT_SETTABLE_STATUSES = ['cancelled'];
+
+/** The id of a field that may or may not have been populated. */
+function idOf(value: any): string | undefined {
+  if (!value) return undefined;
+  return (value._id ?? value).toString();
+}
+
+// Visits are stored as instants but always quoted to people in business time.
+const DEFAULT_BUSINESS_TIMEZONE = 'America/Toronto';
+
+// One requested visit, resolved from wall-clock times to absolute instants.
+type VisitWindow = { start: Date; end: Date; label?: string };
+
+/**
+ * Normalize a date the client sent into a business-local YYYY-MM-DD key.
+ * Accepts a bare date (used as-is) or a full ISO instant (resolved in `timeZone`).
+ */
+function asDayKey(value: string, timeZone: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new BadRequestException(`Invalid date: ${value}`);
+  }
+  return businessDayKey(parsed, timeZone);
+}
+
+/** The calendar day an instant falls on in business time, as YYYY-MM-DD. */
+function businessDayKey(date: Date, timeZone: string): string {
+  return formatInTimeZone(date, timeZone, 'yyyy-MM-dd');
+}
+
+/** Day of week for a YYYY-MM-DD key, 0 = Sunday. */
+function dayOfWeekForKey(dayKey: string): number {
+  const [year, month, day] = dayKey.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+}
+
+function addCalendarDays(dayKey: string, days: number): string {
+  const [year, month, day] = dayKey.split('-').map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day));
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return shifted.toISOString().slice(0, 10);
+}
+
+function calendarDaysBetween(fromDayKey: string, toDayKey: string): number {
+  const asUtc = (key: string) => {
+    const [year, month, day] = key.split('-').map(Number);
+    return Date.UTC(year, month - 1, day);
+  };
+  return Math.round((asUtc(toDayKey) - asUtc(fromDayKey)) / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Categorize a visit by the calendar day it falls on in business time.
+ * The instant alone is not enough: a Friday 9pm Toronto visit is Saturday in UTC,
+ * and would otherwise pick up a weekend surcharge it should not have.
+ */
+function dayCategory(
+  date: Date,
+  timeZone: string = DEFAULT_BUSINESS_TIMEZONE,
+): 'holiday' | 'weekend' | 'weekday' {
+  const dayKey = businessDayKey(date, timeZone);
+  if (HOLIDAY_MONTH_DAYS.has(dayKey.slice(5))) return 'holiday';
+  const dow = dayOfWeekForKey(dayKey);
   if (dow === 0 || dow === 6) return 'weekend';
   return 'weekday';
+}
+
+/**
+ * Two visits clash only when they genuinely share time. The comparison is
+ * half-open, so back-to-back visits (09:00-09:30 then 09:30-10:00) and a
+ * morning/evening pair on the same day are not treated as a clash.
+ */
+function windowsOverlap(
+  a: { start: Date; end: Date },
+  b: { start: Date; end: Date },
+): boolean {
+  return a.start.getTime() < b.end.getTime() && a.end.getTime() > b.start.getTime();
+}
+
+/** Human-readable visit window for error messages, e.g. 'Aug 15, 6:00 PM-6:30 PM'. */
+function describeWindow(window: { start: Date; end: Date }, timeZone: string): string {
+  const sameDay =
+    businessDayKey(window.start, timeZone) === businessDayKey(window.end, timeZone);
+  const start = formatInTimeZone(window.start, timeZone, 'MMM d, h:mm a');
+  const end = formatInTimeZone(window.end, timeZone, sameDay ? 'h:mm a' : 'MMM d, h:mm a');
+  return `${start}-${end}`;
 }
 
 function applySurcharge(baseAmount: number, category: 'holiday' | 'weekend' | 'weekday'): number {
@@ -36,12 +128,14 @@ function applySurcharge(baseAmount: number, category: 'holiday' | 'weekend' | 'w
 import { Booking, BookingDocument } from './schemas/booking.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { BookingVisitDto } from './dto/booking-visit.dto';
+import { CheckSitterAvailabilityDto } from './dto/check-sitter-availability.dto';
 import { CreateBookingAdminDto } from './dto/create-booking-admin.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { ServiceInquiryDto } from './dto/service-inquiry.dto';
 import { EmailService } from '../email/email.service';
 import { ActivityLogService } from '../activity-log/activity-log.service';
-import { toDate } from 'date-fns-tz';
+import { toDate, formatInTimeZone } from 'date-fns-tz';
 
 @Injectable()
 export class BookingsService {
@@ -167,9 +261,14 @@ export class BookingsService {
       console.log(`📋 Service inquiry from NEW customer: ${user.email}`);
     }
 
-    // Parse date range with Toronto timezone (frontend sends dates as YYYY-MM-DD which should be interpreted in Toronto time)
-    const startDate = toDate(`${serviceInquiryDto.startDate}T00:00:00`, { timeZone: 'America/Toronto' });
-    const endDate = toDate(`${serviceInquiryDto.endDate}T00:00:00`, { timeZone: 'America/Toronto' });
+    // The inquiry form sends dates as YYYY-MM-DD, meant as business-local days.
+    // Use the same timezone the visit times below are built in, so a supplied
+    // timeZone does not end up applied to the times but not the dates.
+    const inquiryTimezone = serviceInquiryDto.timeZone || DEFAULT_BUSINESS_TIMEZONE;
+    const startDayKey = asDayKey(serviceInquiryDto.startDate, inquiryTimezone);
+    const endDayKey = asDayKey(serviceInquiryDto.endDate, inquiryTimezone);
+    const startDate = toDate(`${startDayKey}T00:00:00`, { timeZone: inquiryTimezone });
+    const endDate = toDate(`${endDayKey}T00:00:00`, { timeZone: inquiryTimezone });
     
     console.log(`🔍 [DEBUG] Received dates:`, {
       startDateString: serviceInquiryDto.startDate,
@@ -181,9 +280,12 @@ export class BookingsService {
       timeDiff: endDate.getTime() - startDate.getTime(),
     });
     
-    // Calculate number of days in the range (inclusive)
-    const MS_PER_DAY = 1000 * 60 * 60 * 24;
-    const daysDiff = Math.floor((endDate.getTime() - startDate.getTime()) / MS_PER_DAY) + 1;
+    // Count calendar days, not elapsed 24h blocks: a range spanning the spring
+    // clock change is only 47 hours long and would otherwise lose a day.
+    const daysDiff = calendarDaysBetween(startDayKey, endDayKey) + 1;
+    if (daysDiff < 1) {
+      throw new BadRequestException('End date must not be before the start date');
+    }
     
     console.log(`📅 Creating ${daysDiff} individual bookings from ${startDate.toDateString()} to ${endDate.toDateString()}`);
     
@@ -235,12 +337,13 @@ export class BookingsService {
     const bookingGroupId = daysDiff > 1 ? randomUUID() : undefined;
 
     // Create a separate booking for each day in the range applying parsed times
-    // Use business timezone (America/Toronto) so all users see consistent clock times
-    const businessTimezone = serviceInquiryDto.timeZone || 'America/Toronto';
+    // Use business timezone so all users see consistent clock times
+    const businessTimezone = inquiryTimezone;
 
     for (let i = 0; i < daysDiff; i++) {
-      const dayDate = new Date(startDate.getTime() + i * MS_PER_DAY);
-      const dateStr = dayDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      // Step by calendar date rather than by 24h, which drifts across a clock change.
+      const dateStr = addCalendarDays(startDayKey, i); // YYYY-MM-DD
+      const dayDate = toDate(`${dateStr}T00:00:00`, { timeZone: businessTimezone });
       
       // Build local time strings and convert to UTC using business timezone
       const startTimeStr = `${Math.floor(startMinutes / 60).toString().padStart(2, '0')}:${(startMinutes % 60).toString().padStart(2, '0')}`;
@@ -334,58 +437,40 @@ export class BookingsService {
 
   /**
    * Create a new booking (Step 1: Pending status + emails)
-   * Creates individual booking records for each day in the date range
+   * Creates one booking record per requested visit. A day can hold more than
+   * one visit (e.g. a morning and an evening visit), so the records are linked
+   * by a shared bookingGroupId rather than being one-per-calendar-day.
    */
   async create(createBookingDto: CreateBookingDto, userId: string): Promise<Booking> {
-    const startDate = new Date(createBookingDto.startDate);
-    const endDate = new Date(createBookingDto.endDate);
-    
-    // Check for availability conflicts
-    const conflicts = await this.checkAvailability(
-      startDate,
-      endDate,
-      createBookingDto.sitterId
-    );
+    const { visitSlots: _visitSlots, timeZone: _timeZone, ...bookingFields } = createBookingDto;
+    const { windows, timeZone } = this.buildVisitWindows(createBookingDto);
 
-    if (conflicts.length > 0) {
-      throw new BadRequestException('Selected dates conflict with existing bookings');
-    }
+    const sitterId = createBookingDto.sitterId?.trim() || undefined;
 
-    // Calculate number of days in the range (inclusive)
-    const daysDiff = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    const bookingsToCreate = [];
-    const bookingGroupId = daysDiff > 1 ? randomUUID() : undefined;
-    // Treat the incoming totalAmount as the per-day weekday rate (rate × pets);
-    // each day's record gets a surcharged value based on its own date category.
-    const basePerDay = createBookingDto.totalAmount;
+    // Reject only visits that genuinely overlap an existing one, for this
+    // client or the requested sitter — not every booking sharing a date.
+    await this.assertNoVisitConflicts(windows, { userId, sitterId }, timeZone);
 
-    // Create a booking for each day in the range
-    for (let i = 0; i < daysDiff; i++) {
-      const currentDate = new Date(startDate.getTime() + (i * 24 * 60 * 60 * 1000));
+    const startDate = windows[0].start;
+    const endDate = windows[windows.length - 1].end;
+    const bookingGroupId = windows.length > 1 ? randomUUID() : undefined;
+    // The incoming totalAmount is the weekday rate for a single visit (rate × pets);
+    // each visit's record gets a surcharge based on its own date category.
+    const basePerVisit = createBookingDto.totalAmount;
 
-      // Set end date to the same day (for daily bookings, start and end are the same)
-      const currentEndDate = new Date(currentDate);
-      currentEndDate.setHours(23, 59, 59, 999); // End of the same day
-
-      const dayAmount = applySurcharge(basePerDay, dayCategory(currentDate));
-
-      const booking = new this.bookingModel({
-        ...createBookingDto,
-        userId: new Types.ObjectId(userId),
-        createdBy: new Types.ObjectId(userId),
-        bookingGroupId,
-        sitterId: (createBookingDto.sitterId && createBookingDto.sitterId.trim() !== '')
-          ? new Types.ObjectId(createBookingDto.sitterId)
-          : undefined,
-        startDate: currentDate,
-        endDate: currentEndDate,
-        totalAmount: dayAmount,
-        status: 'pending',
-        paymentStatus: 'pending',
-      });
-
-      bookingsToCreate.push(booking);
-    }
+    const bookingsToCreate = windows.map((window) => new this.bookingModel({
+      ...bookingFields,
+      userId: new Types.ObjectId(userId),
+      createdBy: new Types.ObjectId(userId),
+      bookingGroupId,
+      sitterId: sitterId ? new Types.ObjectId(sitterId) : undefined,
+      startDate: window.start,
+      endDate: window.end,
+      visitLabel: window.label,
+      totalAmount: applySurcharge(basePerVisit, dayCategory(window.start, timeZone)),
+      status: 'pending',
+      paymentStatus: 'pending',
+    }));
 
     // Save all bookings
     const savedBookings = await this.bookingModel.insertMany(bookingsToCreate);
@@ -415,7 +500,7 @@ export class BookingsService {
         userId,
         'Booking created',
         'booking',
-        `Created ${savedBookings.length} booking day(s)`,
+        `Created ${savedBookings.length} visit(s)`,
         {
           serviceType: createBookingDto.serviceType,
           bookingCount: savedBookings.length,
@@ -438,19 +523,12 @@ export class BookingsService {
     createBookingAdminDto: CreateBookingAdminDto, 
     adminUserId: string
   ): Promise<Booking> {
-    const startDate = new Date(createBookingAdminDto.startDate);
-    const endDate = new Date(createBookingAdminDto.endDate);
-    
-    // Check for availability conflicts
-    const conflicts = await this.checkAvailability(
-      startDate,
-      endDate,
-      createBookingAdminDto.sitterId
-    );
-
-    if (conflicts.length > 0) {
-      throw new BadRequestException('Selected dates conflict with existing bookings');
-    }
+    const {
+      visitSlots: _visitSlots,
+      timeZone: _timeZone,
+      ...bookingFields
+    } = createBookingAdminDto;
+    const { windows, timeZone } = this.buildVisitWindows(createBookingAdminDto);
 
     // Verify the client exists
     const client = await this.userModel.findById(createBookingAdminDto.userId);
@@ -458,40 +536,33 @@ export class BookingsService {
       throw new NotFoundException('Client not found');
     }
 
-    // Calculate number of days in the range (inclusive)
-    const daysDiff = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    const bookingsToCreate = [];
-    const bookingGroupId = daysDiff > 1 ? randomUUID() : undefined;
-    const basePerDay = createBookingAdminDto.totalAmount;
+    const sitterId = createBookingAdminDto.sitterId?.trim() || undefined;
 
-    // Create a booking for each day in the range
-    for (let i = 0; i < daysDiff; i++) {
-      const currentDate = new Date(startDate.getTime() + (i * 24 * 60 * 60 * 1000));
+    await this.assertNoVisitConflicts(
+      windows,
+      { userId: createBookingAdminDto.userId, sitterId },
+      timeZone,
+    );
 
-      // Set end date to the same day (for daily bookings, start and end are the same)
-      const currentEndDate = new Date(currentDate);
-      currentEndDate.setHours(23, 59, 59, 999); // End of the same day
+    const startDate = windows[0].start;
+    const endDate = windows[windows.length - 1].end;
+    const bookingGroupId = windows.length > 1 ? randomUUID() : undefined;
+    const basePerVisit = createBookingAdminDto.totalAmount;
 
-      const dayAmount = applySurcharge(basePerDay, dayCategory(currentDate));
+    const bookingsToCreate = windows.map((window) => new this.bookingModel({
+      ...bookingFields,
+      userId: new Types.ObjectId(createBookingAdminDto.userId),
+      createdBy: new Types.ObjectId(adminUserId),
+      bookingGroupId,
+      sitterId: sitterId ? new Types.ObjectId(sitterId) : undefined,
+      startDate: window.start,
+      endDate: window.end,
+      visitLabel: window.label,
+      totalAmount: applySurcharge(basePerVisit, dayCategory(window.start, timeZone)),
+      status: 'pending',
+      paymentStatus: 'pending',
+    }));
 
-      const booking = new this.bookingModel({
-        ...createBookingAdminDto,
-        userId: new Types.ObjectId(createBookingAdminDto.userId),
-        createdBy: new Types.ObjectId(adminUserId),
-        bookingGroupId,
-        sitterId: (createBookingAdminDto.sitterId && createBookingAdminDto.sitterId.trim() !== '')
-          ? new Types.ObjectId(createBookingAdminDto.sitterId)
-          : undefined,
-        startDate: currentDate,
-        endDate: currentEndDate,
-        totalAmount: dayAmount,
-        status: 'pending',
-        paymentStatus: 'pending',
-      });
-
-      bookingsToCreate.push(booking);
-    }
-    
     // Save all bookings
     const savedBookings = await this.bookingModel.insertMany(bookingsToCreate);
     
@@ -520,7 +591,7 @@ export class BookingsService {
         adminUserId,
         'Booking created by admin',
         'booking',
-        `Admin created ${savedBookings.length} booking day(s) for client ${createBookingAdminDto.userId}`,
+        `Admin created ${savedBookings.length} visit(s) for client ${createBookingAdminDto.userId}`,
         {
           serviceType: createBookingAdminDto.serviceType,
           clientId: createBookingAdminDto.userId,
@@ -537,28 +608,292 @@ export class BookingsService {
   }
 
   /**
-   * Check availability for dates
+   * Resolve a booking request into the list of visits it actually asks for.
+   *
+   * `visitSlots` is authoritative when supplied and may contain several visits
+   * on the same calendar day — a morning and an evening visit, say. Requests
+   * that predate visit slots fall back to one visit per calendar day, keeping
+   * the requested clock times rather than blocking out the whole day.
+   */
+  private buildVisitWindows(dto: {
+    startDate?: string;
+    endDate?: string;
+    visitSlots?: BookingVisitDto[];
+    timeZone?: string;
+  }): { windows: VisitWindow[]; timeZone: string } {
+    const timeZone = dto.timeZone?.trim() || DEFAULT_BUSINESS_TIMEZONE;
+    const windows = dto.visitSlots?.length
+      ? this.windowsFromSlots(dto.visitSlots, timeZone)
+      : this.windowsFromRange(dto.startDate, dto.endDate, timeZone);
+
+    if (windows.length === 0) {
+      throw new BadRequestException('A booking must contain at least one visit');
+    }
+
+    windows.sort((a, b) => a.start.getTime() - b.start.getTime());
+
+    // A request must not clash with itself.
+    for (let i = 1; i < windows.length; i++) {
+      if (windowsOverlap(windows[i - 1], windows[i])) {
+        throw new BadRequestException(
+          `Two visits in this request overlap (${describeWindow(windows[i - 1], timeZone)} ` +
+            `and ${describeWindow(windows[i], timeZone)}). Adjust the times so they do not clash.`,
+        );
+      }
+    }
+
+    return { windows, timeZone };
+  }
+
+  private windowsFromSlots(slots: BookingVisitDto[], timeZone: string): VisitWindow[] {
+    return slots.map((slot) => {
+      // An overnight visit ends on the morning after the date it starts on.
+      const endDayKey = slot.endsNextDay ? addCalendarDays(slot.date, 1) : slot.date;
+      const start = toDate(`${slot.date}T${slot.startTime}:00`, { timeZone });
+      const end = toDate(`${endDayKey}T${slot.endTime}:00`, { timeZone });
+
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        throw new BadRequestException(`The visit on ${slot.date} has an invalid date or time`);
+      }
+      if (end.getTime() <= start.getTime()) {
+        throw new BadRequestException(
+          `The visit on ${slot.date} ends at or before it starts ` +
+            `(${slot.startTime}-${slot.endTime}). ` +
+            'Mark it as ending the next day if it runs past midnight.',
+        );
+      }
+
+      return { start, end, label: slot.label?.trim() || undefined };
+    });
+  }
+
+  /**
+   * Expand a plain start/end range into one visit per calendar day, preserving
+   * the requested clock times. A multi-day range whose end time is at or before
+   * its start time reads as an overnight pattern and yields one visit per night.
+   */
+  private windowsFromRange(
+    startDate: string | undefined,
+    endDate: string | undefined,
+    timeZone: string,
+  ): VisitWindow[] {
+    if (!startDate || !endDate) {
+      throw new BadRequestException('A booking needs either a date range or a list of visits');
+    }
+
+    const rangeStart = new Date(startDate);
+    const rangeEnd = new Date(endDate);
+    if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
+      throw new BadRequestException('Invalid booking start or end date');
+    }
+
+    const firstDay = businessDayKey(rangeStart, timeZone);
+    const lastDay = businessDayKey(rangeEnd, timeZone);
+    const spanDays = calendarDaysBetween(firstDay, lastDay);
+    if (spanDays < 0) {
+      throw new BadRequestException('Booking end date must not be before the start date');
+    }
+
+    const startClock = formatInTimeZone(rangeStart, timeZone, 'HH:mm');
+    const endClock = formatInTimeZone(rangeEnd, timeZone, 'HH:mm');
+    const overnight = spanDays > 0 && endClock <= startClock;
+
+    // An overnight range covers the nights between the two dates, so the final
+    // calendar day is the morning the last visit ends on, not a visit of its own.
+    const visitCount = overnight ? spanDays : spanDays + 1;
+    const windows: VisitWindow[] = [];
+
+    for (let i = 0; i < visitCount; i++) {
+      const dayKey = addCalendarDays(firstDay, i);
+      const start = toDate(`${dayKey}T${startClock}:00`, { timeZone });
+      const endDayKey = overnight ? addCalendarDays(dayKey, 1) : dayKey;
+      let end = toDate(`${endDayKey}T${endClock}:00`, { timeZone });
+
+      if (end.getTime() <= start.getTime()) {
+        // Single-day range with a non-increasing window: keep a sane, non-zero
+        // duration instead of blocking out the rest of the day.
+        end = new Date(start.getTime() + 60 * 60 * 1000);
+      }
+
+      windows.push({ start, end });
+    }
+
+    return windows;
+  }
+
+  /**
+   * Find existing visits that genuinely clash with the requested ones.
+   *
+   * Deliberately scoped: a clash is either this client already having a visit
+   * at that time, or the requested sitter already being busy then. Bookings
+   * belonging to unrelated clients are never considered, and never read.
+   */
+  private async findVisitConflicts(
+    windows: VisitWindow[],
+    scope: { userId?: string; sitterId?: string; excludeBookingIds?: string[] },
+  ): Promise<{ clientConflicts: BookingDocument[]; sitterConflicts: BookingDocument[] }> {
+    const empty = { clientConflicts: [], sitterConflicts: [] };
+    if (windows.length === 0) return empty;
+
+    const userId = scope.userId?.trim() || undefined;
+    const sitterId = scope.sitterId?.trim() || undefined;
+
+    const scopeClauses: any[] = [];
+    if (userId) scopeClauses.push({ userId: new Types.ObjectId(userId) });
+    if (sitterId) scopeClauses.push({ sitterId: new Types.ObjectId(sitterId) });
+    if (scopeClauses.length === 0) return empty;
+
+    const rangeStart = new Date(Math.min(...windows.map((w) => w.start.getTime())));
+    const rangeEnd = new Date(Math.max(...windows.map((w) => w.end.getTime())));
+
+    const query: any = {
+      status: { $in: ACTIVE_BOOKING_STATUSES },
+      // Half-open range prefilter; the exact per-visit test runs below.
+      startDate: { $lt: rangeEnd },
+      endDate: { $gt: rangeStart },
+      $or: scopeClauses,
+    };
+    if (scope.excludeBookingIds?.length) {
+      query._id = { $nin: scope.excludeBookingIds.map((id) => new Types.ObjectId(id)) };
+    }
+
+    const candidates = await this.bookingModel.find(query).exec();
+    const clashing = candidates.filter((existing) =>
+      windows.some((window) =>
+        windowsOverlap(window, {
+          start: new Date(existing.startDate),
+          end: new Date(existing.endDate),
+        }),
+      ),
+    );
+
+    return {
+      clientConflicts: userId
+        ? clashing.filter((b) => b.userId?.toString() === userId)
+        : [],
+      sitterConflicts: sitterId
+        ? clashing.filter(
+            (b) => b.sitterId?.toString() === sitterId && b.userId?.toString() !== userId,
+          )
+        : [],
+    };
+  }
+
+  /**
+   * Reject a request only when a requested visit really overlaps an existing one.
+   */
+  private async assertNoVisitConflicts(
+    windows: VisitWindow[],
+    scope: { userId?: string; sitterId?: string; excludeBookingIds?: string[] },
+    timeZone: string,
+  ): Promise<void> {
+    const { clientConflicts, sitterConflicts } = await this.findVisitConflicts(windows, scope);
+
+    const summarize = (bookings: BookingDocument[]) =>
+      bookings
+        .slice(0, 3)
+        .map((b) =>
+          describeWindow({ start: new Date(b.startDate), end: new Date(b.endDate) }, timeZone),
+        )
+        .join('; ');
+
+    if (clientConflicts.length > 0) {
+      throw new BadRequestException(
+        `You already have a visit booked at this time (${summarize(clientConflicts)}). ` +
+          'Several visits on the same day are fine as long as their times do not overlap.',
+      );
+    }
+
+    if (sitterConflicts.length > 0) {
+      // Deliberately does not identify the other client.
+      throw new BadRequestException(
+        `The selected sitter is already booked at this time (${summarize(sitterConflicts)}). ` +
+          'Please choose a different time or leave the sitter unassigned.',
+      );
+    }
+  }
+
+  /**
+   * Visits for a sitter that overlap the given window. Used to work out sitter
+   * availability, so a sitter id is required — this never returns a whole-database
+   * listing of bookings.
    */
   async checkAvailability(
     startDate: Date,
     endDate: Date,
     sitterId?: string
   ): Promise<BookingDocument[]> {
-    const query: any = {
-      status: { $in: ['pending', 'confirmed', 'assigned', 'in_progress'] },
-      $or: [
-        {
-          startDate: { $lte: endDate },
-          endDate: { $gte: startDate }
-        }
-      ]
-    };
-
-    if (sitterId && sitterId.trim() !== '') {
-      query.sitterId = new Types.ObjectId(sitterId);
+    if (!sitterId || sitterId.trim() === '') {
+      throw new BadRequestException('A sitter must be specified to check availability');
+    }
+    if (Number.isNaN(startDate?.getTime()) || Number.isNaN(endDate?.getTime())) {
+      throw new BadRequestException('Invalid start or end date');
     }
 
-    return this.bookingModel.find(query).populate('sitterId', 'firstName lastName');
+    return this.bookingModel
+      .find({
+        status: { $in: ACTIVE_BOOKING_STATUSES },
+        sitterId: new Types.ObjectId(sitterId.trim()),
+        // Half-open, so a visit ending exactly when this window opens is free.
+        startDate: { $lt: endDate },
+        endDate: { $gt: startDate },
+      })
+      .select('startDate endDate status serviceType sitterId visitLabel')
+      .populate('sitterId', 'firstName lastName')
+      .exec();
+  }
+
+  /**
+   * Sitters free for every one of the given visits.
+   *
+   * Matching happens per visit rather than across the whole range, so a sitter
+   * with a 9am booking is still offered for a 6pm visit on the same day.
+   */
+  async getAvailableSittersForVisits(
+    dto: CheckSitterAvailabilityDto,
+  ): Promise<UserDocument[]> {
+    const { windows } = this.buildVisitWindows(dto);
+
+    const sitters = await this.userModel
+      .find({ role: 'sitter', status: 'active' })
+      .exec();
+    if (sitters.length === 0) return [];
+
+    const rangeStart = new Date(Math.min(...windows.map((w) => w.start.getTime())));
+    const rangeEnd = new Date(Math.max(...windows.map((w) => w.end.getTime())));
+
+    // One query for every sitter's commitments in the range, matched precisely below.
+    const commitments = await this.bookingModel
+      .find({
+        status: { $in: ACTIVE_BOOKING_STATUSES },
+        sitterId: { $in: sitters.map((sitter) => sitter._id) },
+        startDate: { $lt: rangeEnd },
+        endDate: { $gt: rangeStart },
+      })
+      .select('sitterId startDate endDate')
+      .exec();
+
+    const busyBySitter = new Map<string, { start: Date; end: Date }[]>();
+    for (const booking of commitments) {
+      const key = idOf(booking.sitterId);
+      if (!key) continue;
+      const busy = busyBySitter.get(key) ?? [];
+      busy.push({ start: new Date(booking.startDate), end: new Date(booking.endDate) });
+      busyBySitter.set(key, busy);
+    }
+
+    return sitters.filter((sitter) => {
+      const busy = busyBySitter.get(sitter._id.toString()) ?? [];
+      if (busy.some((slot) => windows.some((window) => windowsOverlap(window, slot)))) {
+        return false;
+      }
+      if (!dto.petTypes?.length) return true;
+      return dto.petTypes.every(
+        (petType) =>
+          sitter.petTypesServiced?.includes(petType) ||
+          sitter.petTypesServiced?.length === 0,
+      );
+    });
   }
 
   /**
@@ -576,13 +911,30 @@ export class BookingsService {
       status: 'active'
     });
 
+    // Widen a date-only range to cover the whole days requested, so a plain
+    // 'YYYY-MM-DD' does not collapse into a zero-length window that matches nothing.
+    const timeZone = DEFAULT_BUSINESS_TIMEZONE;
+    const windowStart = /^\d{4}-\d{2}-\d{2}$/.test(startDate)
+      ? toDate(`${startDate}T00:00:00`, { timeZone })
+      : new Date(startDate);
+    const windowEnd = /^\d{4}-\d{2}-\d{2}$/.test(endDate)
+      ? toDate(`${addCalendarDays(endDate, 1)}T00:00:00`, { timeZone })
+      : new Date(endDate);
+
+    if (Number.isNaN(windowStart.getTime()) || Number.isNaN(windowEnd.getTime())) {
+      throw new BadRequestException('Invalid start or end date');
+    }
+    if (windowEnd.getTime() <= windowStart.getTime()) {
+      throw new BadRequestException('End date must not be before the start date');
+    }
+
     // Check which sitters are available
     const availableSitters = [];
     
     for (const sitter of allSitters) {
       const conflicts = await this.checkAvailability(
-        new Date(startDate),
-        new Date(endDate),
+        windowStart,
+        windowEnd,
         sitter._id.toString()
       );
 
@@ -999,27 +1351,31 @@ export class BookingsService {
       }
     }
 
-    const MS_PER_DAY = 1000 * 60 * 60 * 24;
     let groupRows = Array.from(groups.values()).map((g) => {
       const uniqueStatuses = Array.from(new Set(g.statuses));
       const uniquePayments = Array.from(new Set(g.paymentStatuses));
-      // Day count = max of the record count and the calendar span of the group
-      // (covers legacy single-record bookings that span multiple days, as well as
-      // multi-day groups created with a shared bookingGroupId).
+      // A group holds one record per visit and a day can hold several visits,
+      // so days are counted as distinct calendar dates, never as record count.
+      const dayKeys = new Set<string>(
+        g.bookings
+          .filter((b: any) => b.startDate)
+          .map((b: any) => businessDayKey(new Date(b.startDate), DEFAULT_BUSINESS_TIMEZONE)),
+      );
+      // Legacy single records can still span several days on their own.
       const span = g.startDate && g.endDate
         ? Math.max(
             1,
-            Math.round(
-              (new Date(g.endDate).setHours(0, 0, 0, 0) -
-                new Date(g.startDate).setHours(0, 0, 0, 0)) /
-                MS_PER_DAY,
+            calendarDaysBetween(
+              businessDayKey(new Date(g.startDate), DEFAULT_BUSINESS_TIMEZONE),
+              businessDayKey(new Date(g.endDate), DEFAULT_BUSINESS_TIMEZONE),
             ) + 1,
           )
         : 1;
-      const dayCount = Math.max(g.bookings.length, span);
+      const dayCount = Math.max(dayKeys.size, span, 1);
       return {
         ...g,
         dayCount,
+        visitCount: g.bookings.length,
         status: uniqueStatuses.length === 1 ? uniqueStatuses[0] : 'mixed',
         paymentStatus: uniquePayments.length === 1 ? uniquePayments[0] : 'mixed',
       };
@@ -1434,31 +1790,96 @@ export class BookingsService {
       throw new NotFoundException('Booking not found');
     }
 
-    // Access control
-    const canUpdate = 
-      currentUserRole === 'admin' ||
-      currentUserRole === 'sitter'
+    // Access control: an admin may edit any booking, the client who owns it may
+    // cancel it, and the sitter it is assigned to may move it through the work
+    // statuses. Nobody else — a sitter must not be able to edit other sitters'
+    // bookings, reassign them, or change what they cost.
+    const isAdmin = currentUserRole === 'admin';
+    const isOwner = idOf(booking.userId) === currentUserId;
+    const isAssignedSitter =
+      currentUserRole === 'sitter' && idOf(booking.sitterId) === currentUserId;
 
-    if (!canUpdate) {
+    if (!isAdmin && !isOwner && !isAssignedSitter) {
       throw new ForbiddenException('You can only update your own bookings');
     }
 
     // Store original status for comparison
     const originalStatus = booking.status;
 
-    // Restrict certain fields to admin only
     const updateData: any = { ...updateBookingDto };
-    
-    // Only admin can update status, sitterId, or adminNotes
-    // if (currentUserRole !== 'admin') {
-    //   delete updateData.status;
-    //   delete updateData.sitterId;
-    //   delete updateData.adminNotes;
-    // }
 
-    // Convert date string to Date object if provided
-    if (updateData.date) {
-      updateData.date = new Date(updateData.date);
+    // visitSlots and timeZone describe a booking *request*; they are not stored
+    // fields, and are inherited here only because the DTO extends the create DTO.
+    delete updateData.visitSlots;
+    delete updateData.timeZone;
+
+    // An empty sitterId means "unassign" rather than an unparseable ObjectId.
+    if (updateData.sitterId !== undefined && !updateData.sitterId?.toString().trim()) {
+      updateData.sitterId = null;
+    }
+
+    const requestedFields = Object.keys(updateData);
+    if (requestedFields.length === 0) {
+      throw new BadRequestException('No fields to update');
+    }
+
+    if (!isAdmin) {
+      const allowedFields = isAssignedSitter
+        ? SITTER_UPDATABLE_FIELDS
+        : CLIENT_UPDATABLE_FIELDS;
+      for (const field of requestedFields) {
+        if (!allowedFields.includes(field)) delete updateData[field];
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        throw new ForbiddenException(
+          `Your role may only change: ${allowedFields.join(', ')}`,
+        );
+      }
+
+      const settableStatuses = isAssignedSitter
+        ? SITTER_SETTABLE_STATUSES
+        : CLIENT_SETTABLE_STATUSES;
+      if (updateData.status !== undefined && !settableStatuses.includes(updateData.status)) {
+        throw new ForbiddenException(
+          `Your role may only set the status to: ${settableStatuses.join(', ')}`,
+        );
+      }
+    }
+
+    // Moving a booking's time or sitter must not drop it on top of another
+    // visit. Only admins can reach this, but the check belongs with the write.
+    const movesWindow =
+      updateData.startDate !== undefined ||
+      updateData.endDate !== undefined ||
+      updateData.sitterId !== undefined;
+
+    if (movesWindow) {
+      const nextStart = new Date(updateData.startDate ?? booking.startDate);
+      const nextEnd = new Date(updateData.endDate ?? booking.endDate);
+
+      if (Number.isNaN(nextStart.getTime()) || Number.isNaN(nextEnd.getTime())) {
+        throw new BadRequestException('Invalid booking start or end date');
+      }
+      if (nextEnd.getTime() <= nextStart.getTime()) {
+        throw new BadRequestException('A booking must end after it starts');
+      }
+
+      const nextSitterId =
+        updateData.sitterId !== undefined
+          ? updateData.sitterId?.toString().trim() || undefined
+          : idOf(booking.sitterId);
+
+      await this.assertNoVisitConflicts(
+        [{ start: nextStart, end: nextEnd }],
+        {
+          userId: idOf(booking.userId),
+          sitterId: nextSitterId,
+          // The booking being edited is not a conflict with itself.
+          excludeBookingIds: [bookingId],
+        },
+        DEFAULT_BUSINESS_TIMEZONE,
+      );
     }
 
     const updatedBooking = await this.bookingModel
