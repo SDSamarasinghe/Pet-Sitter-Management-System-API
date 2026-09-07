@@ -1,0 +1,28 @@
+# Dependencies (reinstalled inside the image for the correct platform)
+node_modules
+npm-debug.log*
+
+# Secrets - never bake these into an image layer.
+# Runtime values come from docker-compose `env_file`.
+.env
+.env.*
+
+# Build output (rebuilt in the builder stage) and stale incremental state
+dist
+build
+*.tsbuildinfo
+
+# VCS / editor / OS
+.git
+.gitignore
+.github
+.vscode
+.idea
+.DS_Store
+
+# Docs and local test scripts - not needed to build
+*.md
+!README.md
+Email-Testing-Collection.postman_collection.json
+test-*.sh
+coverage
