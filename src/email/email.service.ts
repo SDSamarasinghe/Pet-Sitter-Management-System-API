@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { MailerService } from '@nestjs-modules/mailer';
+import { BookingChargeSummary } from '../common/booking-charge';
 
 @Injectable()
 export class EmailService {
@@ -35,17 +36,91 @@ export class EmailService {
   }
 
   /**
+   * The amount to quote a client.
+   *
+   * A stay is stored as one record per visit, so `booking.totalAmount` is a
+   * single visit's price. Prefer the summary covering every visit, and fall
+   * back to the record only when a caller has not supplied one.
+   */
+  private chargeTotal(booking: any, charges?: BookingChargeSummary): number | undefined {
+    if (charges) return charges.total;
+    return typeof booking?.totalAmount === 'number' ? booking.totalAmount : undefined;
+  }
+
+  /** 'Aug 15, 9:00 AM' — a breakdown line has no use for seconds. */
+  private formatVisitTime(date: Date, timezone: string = this.APP_TIMEZONE): string {
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: timezone,
+    });
+  }
+
+  /** A money figure as '$123.00 CAD', or 'TBD' when nothing has been priced yet. */
+  private formatAmount(amount?: number): string {
+    return typeof amount === 'number' ? `$${amount.toFixed(2)} CAD` : 'TBD';
+  }
+
+  /** 'for 3 visits', so a total is never mistaken for a per-visit rate. */
+  private describeVisitCount(charges?: BookingChargeSummary): string {
+    if (!charges || charges.visitCount <= 1) return '';
+    return ` <span style="font-weight: 400; color: #555;">(for ${charges.visitCount} visits)</span>`;
+  }
+
+  /**
+   * Per-visit breakdown of a stay.
+   *
+   * Weekend and holiday visits cost more than the advertised rate, so showing
+   * the line items is what stops the total looking like an error to a client
+   * who multiplied the base rate by the number of days.
+   */
+  private renderChargeBreakdown(charges?: BookingChargeSummary): string {
+    if (!charges || charges.visitCount <= 1) return '';
+
+    const surchargeNote: Record<string, string> = {
+      weekend: ' <span style="color: #B45309; font-size: 12px;">weekend rate</span>',
+      holiday: ' <span style="color: #BE123C; font-size: 12px;">holiday rate</span>',
+      weekday: '',
+    };
+
+    const rows = charges.visits
+      .map((visit) => {
+        const date = this.formatDateInTimezone(new Date(visit.start), charges.timeZone);
+        const time = this.formatVisitTime(new Date(visit.start), charges.timeZone);
+        const label = visit.label ? ` &middot; ${visit.label}` : '';
+        return `
+          <tr>
+            <td style="padding: 6px 0; color: #2C3E50; font-size: 14px;">${date}, ${time}${label}${surchargeNote[visit.category] || ''}</td>
+            <td style="padding: 6px 0; color: #2C3E50; font-size: 14px; text-align: right; white-space: nowrap;">$${visit.amount.toFixed(2)}</td>
+          </tr>`;
+      })
+      .join('');
+
+    return `
+      <table style="width: 100%; border-collapse: collapse; margin: 10px 0 0 0;">
+        <tbody>
+          ${rows}
+          <tr>
+            <td style="padding: 10px 0 0 0; border-top: 1px solid #DDD; font-weight: 700; color: #1A2A6C;">Total (${charges.visitCount} visits)</td>
+            <td style="padding: 10px 0 0 0; border-top: 1px solid #DDD; font-weight: 700; color: #1A2A6C; text-align: right; white-space: nowrap;">$${charges.total.toFixed(2)} CAD</td>
+          </tr>
+        </tbody>
+      </table>`;
+  }
+
+  /**
    * 📧 STEP 1: Send pending booking emails (Client + Admin)
    */
-  async sendPendingBookingEmails(booking: any, client: any, rangeStartDate?: Date, rangeEndDate?: Date): Promise<void> {
+  async sendPendingBookingEmails(booking: any, client: any, rangeStartDate?: Date, rangeEndDate?: Date, charges?: BookingChargeSummary): Promise<void> {
     try {
       console.log(`📧 Sending pending booking emails for booking ${booking._id}`);
       
       // Send to client
-      await this.sendClientPendingBookingEmail(booking, client, rangeStartDate, rangeEndDate);
+      await this.sendClientPendingBookingEmail(booking, client, rangeStartDate, rangeEndDate, charges);
       
       // Send to admin
-      await this.sendAdminPendingBookingEmail(booking, client, rangeStartDate, rangeEndDate);
+      await this.sendAdminPendingBookingEmail(booking, client, rangeStartDate, rangeEndDate, charges);
       
       console.log(`✅ Pending booking emails sent successfully for booking ${booking._id}`);
     } catch (error) {
@@ -77,12 +152,12 @@ export class EmailService {
   /**
    * 📧 STEP 3: Send booking confirmed & paid emails (Client + Admin + Sitter)
    */
-  async sendBookingConfirmedPaidEmails(booking: any, client: any, sitter: any): Promise<void> {
+  async sendBookingConfirmedPaidEmails(booking: any, client: any, sitter: any, charges?: BookingChargeSummary): Promise<void> {
     try {
       console.log(`📧 Sending booking confirmed & paid emails for booking ${booking._id}`);
       
       // Send to client
-      await this.sendClientBookingConfirmedPaidEmail(booking, client, sitter);
+      await this.sendClientBookingConfirmedPaidEmail(booking, client, sitter, charges);
       
       // Send to sitter
       if (sitter) {
@@ -90,7 +165,7 @@ export class EmailService {
       }
       
       // Send to admin
-      await this.sendAdminBookingConfirmedPaidEmail(booking, client, sitter);
+      await this.sendAdminBookingConfirmedPaidEmail(booking, client, sitter, charges);
       
       console.log(`✅ Booking confirmed & paid emails sent successfully for booking ${booking._id}`);
     } catch (error) {
@@ -108,6 +183,7 @@ export class EmailService {
     rejectionReason?: string,
     rangeStartDate?: Date,
     rangeEndDate?: Date,
+    charges?: BookingChargeSummary,
   ): Promise<void> {
     try {
       console.log(`📧 Sending booking rejected emails for booking ${booking._id}`);
@@ -116,7 +192,7 @@ export class EmailService {
       await this.sendClientBookingRejectedEmail(booking, client, rejectionReason, rangeStartDate, rangeEndDate);
 
       // Send to admin
-      await this.sendAdminBookingRejectedEmail(booking, client, rejectionReason, rangeStartDate, rangeEndDate);
+      await this.sendAdminBookingRejectedEmail(booking, client, rejectionReason, rangeStartDate, rangeEndDate, charges);
 
       console.log(`✅ Booking rejected emails sent successfully for booking ${booking._id}`);
     } catch (error) {
@@ -148,7 +224,7 @@ export class EmailService {
   /**
    * Client: Pending booking confirmation
    */
-  private async sendClientPendingBookingEmail(booking: any, client: any, rangeStartDate?: Date, rangeEndDate?: Date): Promise<void> {
+  private async sendClientPendingBookingEmail(booking: any, client: any, rangeStartDate?: Date, rangeEndDate?: Date, charges?: BookingChargeSummary): Promise<void> {
     // Use the range dates if provided (for multi-day bookings), otherwise use individual booking dates
     const displayStartDate = rangeStartDate ? this.formatDateInTimezone(rangeStartDate) : this.formatDateInTimezone(new Date(booking.startDate));
     const displayEndDate = rangeEndDate ? this.formatDateInTimezone(rangeEndDate) : this.formatDateInTimezone(new Date(booking.endDate));
@@ -287,8 +363,9 @@ export class EmailService {
                   <p style="color: #2C3E50;">Please send your payment to:</p>
                   <div style="background-color: #F5F5F5; padding: 15px; border-radius: 6px; margin: 15px 0;">
                     <p style="margin: 5px 0; color: #1A2A6C;"><strong>Email:</strong> ${'pets@whiskarz.com'}</p>
-                    <p style="margin: 5px 0; color: #2C3E50;"><strong>Amount:</strong> $${booking.totalAmount ? booking.totalAmount.toFixed(2) : 'TBD'} CAD</p>
+                    <p style="margin: 5px 0; color: #2C3E50;"><strong>Amount:</strong> ${this.formatAmount(this.chargeTotal(booking, charges))}${this.describeVisitCount(charges)}</p>
                     <p style="margin: 5px 0; color: #2C3E50;"><strong>Reference:</strong> ${booking._id}</p>
+                    ${this.renderChargeBreakdown(charges)}
                   </div>
                   <p style="color: #666; font-size: 14px;"><em>Note: Please include your booking reference number in the e-transfer message.</em></p>
                   <p style="color: #666; font-size: 14px;"><em>Payment confirms your booking and ensures your spot is reserved.</em></p>
@@ -325,7 +402,7 @@ export class EmailService {
   /**
    * Client: Booking confirmed & paid
    */
-  private async sendClientBookingConfirmedPaidEmail(booking: any, client: any, sitter: any): Promise<void> {
+  private async sendClientBookingConfirmedPaidEmail(booking: any, client: any, sitter: any, charges?: BookingChargeSummary): Promise<void> {
     const startDate = new Date(booking.startDate).toLocaleDateString();
     const endDate = new Date(booking.endDate).toLocaleDateString();
     const startTime = new Date(booking.startDate).toLocaleTimeString();
@@ -369,7 +446,7 @@ export class EmailService {
                 <p><strong>Service Type:</strong> ${booking.serviceType}</p>
                 <p><strong>Number of Pets:</strong> ${booking.numberOfPets}</p>
                 <p><strong>Pet Types:</strong> ${booking.petTypes?.join(', ')}</p>
-                <p><strong>Total Amount:</strong> <strong>$${booking.totalAmount} ✅ PAID</strong></p>
+                <p><strong>Total Amount:</strong> <strong>${this.formatAmount(this.chargeTotal(booking, charges))} ✅ PAID</strong>${this.describeVisitCount(charges)}</p>
                 <p><strong>Booking Reference:</strong> ${booking._id}</p>
               </div>
 
@@ -769,7 +846,7 @@ export class EmailService {
   /**
    * Admin: New pending booking notification
    */
-  private async sendAdminPendingBookingEmail(booking: any, client: any, rangeStartDate?: Date, rangeEndDate?: Date): Promise<void> {
+  private async sendAdminPendingBookingEmail(booking: any, client: any, rangeStartDate?: Date, rangeEndDate?: Date, charges?: BookingChargeSummary): Promise<void> {
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@flyingduchess.com';
     // Use the range dates if provided (for multi-day bookings), otherwise use individual booking dates
     const displayStartDate = rangeStartDate ? this.formatDateInTimezone(rangeStartDate) : this.formatDateInTimezone(new Date(booking.startDate));
@@ -815,7 +892,7 @@ export class EmailService {
                 <p><strong>Number of Pets:</strong> ${booking.numberOfPets}</p>
                 <p><strong>Pet Types:</strong> ${booking.petTypes?.join(', ')}</p>
                 <p><strong>Service Address:</strong> ${booking.serviceAddress || client.address || 'Not provided'}</p>
-                <p><strong>Total Amount:</strong> <span class="amount">$${booking.totalAmount}</span></p>
+                <p><strong>Total Amount:</strong> <span class="amount">${this.formatAmount(this.chargeTotal(booking, charges))}</span>${this.describeVisitCount(charges)}</p>
                 <p><strong>Status:</strong> <strong>PENDING</strong></p>
                 <p><strong>Booking ID:</strong> ${booking._id}</p>
                 
@@ -859,7 +936,7 @@ export class EmailService {
   /**
    * Admin: Booking confirmed & paid notification
    */
-  private async sendAdminBookingConfirmedPaidEmail(booking: any, client: any, sitter: any): Promise<void> {
+  private async sendAdminBookingConfirmedPaidEmail(booking: any, client: any, sitter: any, charges?: BookingChargeSummary): Promise<void> {
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@flyingduchess.com';
     const startDate = new Date(booking.startDate).toLocaleDateString();
     const endDate = new Date(booking.endDate).toLocaleDateString();
@@ -903,7 +980,7 @@ export class EmailService {
                 <p><strong>Service Dates:</strong> ${startDate} to ${endDate}</p>
                 <p><strong>Service Type:</strong> ${booking.serviceType}</p>
                 <p><strong>Pets:</strong> ${booking.numberOfPets} ${booking.petTypes?.join(', ')}</p>
-                <p><strong>Amount:</strong> <span class="amount">$${booking.totalAmount} ✅ PAID</span></p>
+                <p><strong>Amount:</strong> <span class="amount">${this.formatAmount(this.chargeTotal(booking, charges))} ✅ PAID</span>${this.describeVisitCount(charges)}</p>
                 <p><strong>Booking ID:</strong> ${booking._id}</p>
                 
                 ${sitter ? `
@@ -944,6 +1021,7 @@ export class EmailService {
     rejectionReason?: string,
     rangeStartDate?: Date,
     rangeEndDate?: Date,
+    charges?: BookingChargeSummary,
   ): Promise<void> {
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@flyingduchess.com';
     const startDate = (rangeStartDate ?? new Date(booking.startDate)).toLocaleDateString();
@@ -979,7 +1057,7 @@ export class EmailService {
                 <h3>📋 Rejected Booking Details</h3>
                 <p><strong>Client:</strong> ${client.firstName} ${client.lastName} (${client.email})</p>
                 <p><strong>Service Dates:</strong> ${endDate && endDate !== startDate ? `${startDate} → ${endDate}` : startDate}</p>
-                <p><strong>Amount:</strong> $${booking.totalAmount}</p>
+                <p><strong>Amount:</strong> ${this.formatAmount(this.chargeTotal(booking, charges))}${this.describeVisitCount(charges)}</p>
                 <p><strong>Booking ID:</strong> ${booking._id}</p>
                 <p><strong>Status:</strong> REJECTED</p>
                 

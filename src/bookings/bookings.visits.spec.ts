@@ -656,3 +656,89 @@ describe('getAvailableSittersForVisits', () => {
     expect(available.map((s: any) => s._id)).toEqual([sitterB]);
   });
 });
+
+/**
+ * The bug a client reported: a three-visit stay was asked to e-transfer $35 —
+ * one weekend visit's price — instead of the total across all three visits.
+ */
+describe('the amount quoted for payment', () => {
+  const clientId = '64b7f1a2c3d4e5f601020304';
+
+  // Aug 15 and 16 2026 are a Saturday and a Sunday, so two of the three visits
+  // carry the +15% weekend surcharge: 30 + 35 + 35, not 3 × 30.
+  const THREE_VISITS = [
+    { date: '2026-08-14', startTime: '09:00', endTime: '09:30' },
+    { date: '2026-08-15', startTime: '09:00', endTime: '09:30' },
+    { date: '2026-08-16', startTime: '09:00', endTime: '09:30' },
+  ];
+
+  const PAYLOAD = {
+    serviceType: 'Pet Visit 30min',
+    startDate: '2026-08-14T09:00:00',
+    endDate: '2026-08-16T09:30:00',
+    visitSlots: THREE_VISITS,
+    numberOfPets: 1,
+    petTypes: ['Cat(s)'],
+    totalAmount: 30, // the weekday rate for one visit
+  } as any;
+
+  /** Captures the arguments the pending-booking email is sent with. */
+  function serviceWithEmailCapture() {
+    const saved: any[] = [];
+    const bookingModel: any = function (doc: any) {
+      return doc;
+    };
+    bookingModel.find = () => ({ exec: async () => [] });
+    bookingModel.insertMany = async (docs: any[]) => {
+      saved.push(...docs);
+      return docs.map((doc, i) => ({ ...doc, _id: `id-${i}` }));
+    };
+    bookingModel.findById = () => ({
+      populate: () => ({
+        populate: () => ({ exec: async () => ({ _id: 'id-0', userId: { email: 'c@example.com' } }) }),
+      }),
+    });
+
+    const pendingEmails: any[] = [];
+    const emailService: any = {
+      sendPendingBookingEmails: async (...args: any[]) => {
+        pendingEmails.push(args);
+      },
+    };
+    const activityLog: any = { log: async () => undefined };
+    const service = new BookingsService(bookingModel, null as any, emailService, activityLog);
+    return { service, saved, pendingEmails };
+  }
+
+  it('totals every visit rather than quoting the first one', async () => {
+    const { service, saved, pendingEmails } = serviceWithEmailCapture();
+    await service.create(PAYLOAD, clientId);
+
+    expect(saved.map((b) => b.totalAmount)).toEqual([30, 35, 35]);
+
+    expect(pendingEmails).toHaveLength(1);
+    const charges = pendingEmails[0][4];
+    expect(charges.visitCount).toBe(3);
+    expect(charges.total).toBe(100);
+
+    // The per-visit lines explain why the total is not 3 × $30.
+    expect(charges.visits.map((v: any) => v.category)).toEqual([
+      'weekday',
+      'weekend',
+      'weekend',
+    ]);
+    expect(charges.visits.map((v: any) => v.amount)).toEqual([30, 35, 35]);
+  });
+
+  it('still totals correctly for a single-visit booking', async () => {
+    const { service, pendingEmails } = serviceWithEmailCapture();
+    await service.create(
+      { ...PAYLOAD, visitSlots: [THREE_VISITS[0]], endDate: '2026-08-14T09:30:00' },
+      clientId,
+    );
+
+    const charges = pendingEmails[0][4];
+    expect(charges.visitCount).toBe(1);
+    expect(charges.total).toBe(30);
+  });
+});

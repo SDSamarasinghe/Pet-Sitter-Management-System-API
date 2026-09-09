@@ -9,6 +9,7 @@ import {
   buildPaginatedResult,
   escapeRegex,
 } from '../common/pagination';
+import { BookingChargeSummary, VisitCharge } from '../common/booking-charge';
 
 // Surcharge percentages applied per-day at booking creation time.
 // Kept in sync with the booking form on the web client.
@@ -125,6 +126,43 @@ function applySurcharge(baseAmount: number, category: 'holiday' | 'weekend' | 'w
   }
   return baseAmount;
 }
+
+/**
+ * Total up a stay for the people who have to pay for it.
+ *
+ * A stay is stored as one record per visit, each priced with its own day's
+ * surcharge, so any single record's totalAmount is one visit's price — never
+ * the amount owed. Quoting money from one record is what made a three-visit
+ * booking ask for a single weekend visit's $35.
+ */
+function buildChargeSummary(
+  visits: any[],
+  timeZone: string = DEFAULT_BUSINESS_TIMEZONE,
+): BookingChargeSummary | undefined {
+  const priced = (visits || []).filter(Boolean);
+  if (priced.length === 0) return undefined;
+
+  const ordered = [...priced].sort(
+    (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime(),
+  );
+
+  const charges: VisitCharge[] = ordered.map((visit) => {
+    const start = new Date(visit.startDate);
+    return {
+      start,
+      label: visit.visitLabel,
+      category: dayCategory(start, timeZone),
+      amount: visit.totalAmount || 0,
+    };
+  });
+
+  return {
+    visitCount: charges.length,
+    total: charges.reduce((sum, charge) => sum + charge.amount, 0),
+    visits: charges,
+    timeZone,
+  };
+}
 import { Booking, BookingDocument } from './schemas/booking.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -169,12 +207,45 @@ export class BookingsService {
   }
 
   /**
+   * The charge for the visits an email is actually about.
+   *
+   * Status and payment updates arrive holding a single visit, and its siblings
+   * carry the rest of the price — so pull the group before quoting any money.
+   * `covers` narrows the group to the visits the email speaks for: marking one
+   * visit of a stay paid must not announce the whole stay as paid.
+   */
+  private async loadChargeSummary(
+    booking: any,
+    covers: (visit: any) => boolean = () => true,
+  ): Promise<BookingChargeSummary | undefined> {
+    const groupId = booking?.bookingGroupId;
+    if (!groupId) return buildChargeSummary([booking]);
+
+    try {
+      const visits = await this.bookingModel
+        .find({ bookingGroupId: groupId })
+        .sort({ startDate: 1 })
+        .exec();
+      const covered = visits.filter(covers);
+      return buildChargeSummary(covered.length > 0 ? covered : [booking]);
+    } catch (error) {
+      console.error('Failed to load booking group for charge summary:', (error as Error)?.message || error);
+      return buildChargeSummary([booking]);
+    }
+  }
+
+  /**
    * Send notifications for pending bookings (Step 1)
    */
-  private async sendPendingBookingNotifications(booking: any, rangeStartDate?: Date, rangeEndDate?: Date): Promise<void> {
+  private async sendPendingBookingNotifications(
+    booking: any,
+    rangeStartDate?: Date,
+    rangeEndDate?: Date,
+    charges?: BookingChargeSummary,
+  ): Promise<void> {
     try {
       const client = booking.userId;
-      await this.emailService.sendPendingBookingEmails(booking, client, rangeStartDate, rangeEndDate);
+      await this.emailService.sendPendingBookingEmails(booking, client, rangeStartDate, rangeEndDate, charges);
       console.log(`Pending booking email notifications sent for booking ${booking._id}`);
     } catch (error) {
       console.error('Error sending pending booking notifications:', error);
@@ -484,8 +555,14 @@ export class BookingsService {
         .exec();
 
       if (populatedBooking) {
-        // Pass the original date range for multi-day bookings
-        await this.sendPendingBookingNotifications(populatedBooking, startDate, endDate);
+        // Pass the original date range for multi-day bookings, and the charge
+        // for every visit — the email quotes the stay's total, not this record's.
+        await this.sendPendingBookingNotifications(
+          populatedBooking,
+          startDate,
+          endDate,
+          buildChargeSummary(savedBookings, timeZone),
+        );
 
         // If sitter is already assigned, send sitter assignment notification
         if (populatedBooking.sitterId) {
@@ -575,8 +652,14 @@ export class BookingsService {
         .exec();
 
       if (populatedBooking) {
-        // Pass the original date range for multi-day bookings
-        await this.sendPendingBookingNotifications(populatedBooking, startDate, endDate);
+        // Pass the original date range for multi-day bookings, and the charge
+        // for every visit — the email quotes the stay's total, not this record's.
+        await this.sendPendingBookingNotifications(
+          populatedBooking,
+          startDate,
+          endDate,
+          buildChargeSummary(savedBookings, timeZone),
+        );
         
         // If sitter is already assigned, send sitter assignment notification
         if (populatedBooking.sitterId) {
@@ -1470,6 +1553,7 @@ export class BookingsService {
             undefined,
             groupStart,
             groupEnd,
+            buildChargeSummary(bookings),
           );
         } catch (error) {
           console.error('Failed to send group rejection email:', (error as Error)?.message || error);
@@ -1531,6 +1615,7 @@ export class BookingsService {
           anchor,
           anchor.userId,
           anchor.sitterId,
+          buildChargeSummary(bookings),
         );
       } catch (error) {
         console.error(
@@ -1936,7 +2021,14 @@ export class BookingsService {
       // Step 4: Booking rejected (any status → Rejected)
       if (currentStatus === 'cancelled' && originalStatus !== 'cancelled') {
         console.log(`❌ Step 4: Booking ${booking._id} rejected`);
-        await this.emailService.sendBookingRejectedEmails(booking, client);
+        await this.emailService.sendBookingRejectedEmails(
+          booking,
+          client,
+          undefined,
+          undefined,
+          undefined,
+          await this.loadChargeSummary(booking, (v) => v.status === 'cancelled'),
+        );
         console.log(`✅ Rejection emails sent for booking ${booking._id}`);
         return;
       }
@@ -2096,7 +2188,12 @@ export class BookingsService {
       try {
         const client = booking.userId;
         const sitter = booking.sitterId;
-        await this.emailService.sendBookingConfirmedPaidEmails(booking, client, sitter);
+        await this.emailService.sendBookingConfirmedPaidEmails(
+          booking,
+          client,
+          sitter,
+          await this.loadChargeSummary(booking, (v) => v.paymentStatus === 'paid'),
+        );
         console.log(`Payment confirmation emails sent for booking ${booking._id}`);
       } catch (error) {
         console.error(`Error sending payment confirmation emails for booking ${booking._id}:`, error);
