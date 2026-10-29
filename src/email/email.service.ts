@@ -57,6 +57,16 @@ export class EmailService {
     });
   }
 
+  /** Text someone typed into a form, made safe to place inside an email's HTML. */
+  private escapeHtml(value: unknown): string {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   /** A money figure as '$123.00 CAD', or 'TBD' when nothing has been priced yet. */
   private formatAmount(amount?: number): string {
     return typeof amount === 'number' ? `$${amount.toFixed(2)} CAD` : 'TBD';
@@ -71,17 +81,15 @@ export class EmailService {
   /**
    * Per-visit breakdown of a stay.
    *
-   * Weekend and holiday visits cost more than the advertised rate, so showing
-   * the line items is what stops the total looking like an error to a client
-   * who multiplied the base rate by the number of days.
+   * Holiday visits cost more than the advertised rate, so showing the line
+   * items is what stops the total looking like an error to a client who
+   * multiplied the base rate by the number of days. Weekends are the regular rate.
    */
   private renderChargeBreakdown(charges?: BookingChargeSummary): string {
     if (!charges || charges.visitCount <= 1) return '';
 
     const surchargeNote: Record<string, string> = {
-      weekend: ' <span style="color: #B45309; font-size: 12px;">weekend rate</span>',
       holiday: ' <span style="color: #BE123C; font-size: 12px;">holiday rate</span>',
-      weekday: '',
     };
 
     const rows = charges.visits
@@ -1344,7 +1352,7 @@ export class EmailService {
               </div>
               
               <div class="content">
-                <p style="font-size: 16px;">Hello <strong style="color: #1A2A6C;">${sitter.firstName}</strong>,</p>
+                <p style="font-size: 16px;">Hello <strong style="color: #1A2A6C;">${this.escapeHtml(sitter.firstName)}</strong>,</p>
                 
                 <p>Great news! You have been assigned to provide pet-sitting services for a client. Below are the booking details:</p>
 
@@ -1355,35 +1363,35 @@ export class EmailService {
                 <div class="booking-details">
                   <h3>📅 Booking Information</h3>
                   <p><strong>Booking ID:</strong> ${booking._id}</p>
-                  <p><strong>Service Type:</strong> ${booking.serviceType || 'Pet-Sitting Service'}</p>
+                  <p><strong>Service Type:</strong> ${this.escapeHtml(booking.serviceType || 'Pet-Sitting Service')}</p>
                   <p><strong>Service Dates:</strong> ${displayStartDate} to ${displayEndDate}</p>
                   <p><strong>Service Times:</strong> ${startTime} - ${endTime}</p>
-                  <p><strong>Number of Pets:</strong> ${booking.numberOfPets || 'Not specified'}</p>
-                  ${booking.petTypes && booking.petTypes.length > 0 ? `<p><strong>Pet Types:</strong> ${booking.petTypes.join(', ')}</p>` : ''}
-                  ${booking.serviceAddress ? `<p><strong>Service Address:</strong> ${booking.serviceAddress}</p>` : ''}
+                  <p><strong>Number of Pets:</strong> ${this.escapeHtml(booking.numberOfPets || 'Not specified')}</p>
+                  ${booking.petTypes && booking.petTypes.length > 0 ? `<p><strong>Pet Types:</strong> ${this.escapeHtml(booking.petTypes.join(', '))}</p>` : ''}
+                  ${booking.serviceAddress ? `<p><strong>Service Address:</strong> ${this.escapeHtml(booking.serviceAddress)}</p>` : ''}
                 </div>
 
                 ${booking.specialInstructions || booking.notes ? `
                 <div class="booking-details">
                   ${booking.specialInstructions ? `
                   <h4>⚠️ Special Instructions:</h4>
-                  <p>${booking.specialInstructions}</p>
+                  <p>${this.escapeHtml(booking.specialInstructions)}</p>
                   ` : ''}
                   
                   ${booking.notes ? `
                   <h4>📝 Service Notes:</h4>
-                  <p>${booking.notes}</p>
+                  <p>${this.escapeHtml(booking.notes)}</p>
                   ` : ''}
                 </div>
                 ` : ''}
 
                 <div class="client-info">
                   <h3>👤 Client Contact Information</h3>
-                  <p><strong>Name:</strong> ${client.firstName} ${client.lastName}</p>
-                  <p><strong>Email:</strong> ${client.email}</p>
-                  ${client.phoneNumber ? `<p><strong>Phone:</strong> ${client.phoneNumber}</p>` : ''}
-                  ${client.address ? `<p><strong>Address:</strong> ${client.address}</p>` : ''}
-                  ${client.emergencyContact ? `<p><strong>Emergency Contact:</strong> ${client.emergencyContact}</p>` : ''}
+                  <p><strong>Name:</strong> ${this.escapeHtml(client.firstName)} ${this.escapeHtml(client.lastName)}</p>
+                  <p><strong>Email:</strong> ${this.escapeHtml(client.email)}</p>
+                  ${client.phoneNumber ? `<p><strong>Phone:</strong> ${this.escapeHtml(client.phoneNumber)}</p>` : ''}
+                  ${client.address ? `<p><strong>Address:</strong> ${this.escapeHtml(client.address)}</p>` : ''}
+                  ${client.emergencyContact ? `<p><strong>Emergency Contact:</strong> ${this.escapeHtml(client.emergencyContact)}</p>` : ''}
                 </div>
 
                 <div class="info-box">

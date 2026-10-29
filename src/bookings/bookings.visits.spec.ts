@@ -355,9 +355,9 @@ describe('create() with the payload the booking form now sends', () => {
       'Morning',
     ]);
 
-    // Priced per visit: Aug 15 and 16 are a Saturday and Sunday, so those three
-    // visits carry the weekend surcharge and Friday's does not.
-    expect(saved.map((b) => b.totalAmount)).toEqual([60, 69, 69, 69]);
+    // Priced per visit. Aug 15 and 16 are a Saturday and Sunday, and weekends
+    // are charged the regular rate, so every visit costs the same.
+    expect(saved.map((b) => b.totalAmount)).toEqual([60, 60, 60, 60]);
 
     // The request payload's own fields must not leak into the stored document.
     for (const booking of saved) {
@@ -664,8 +664,8 @@ describe('getAvailableSittersForVisits', () => {
 describe('the amount quoted for payment', () => {
   const clientId = '64b7f1a2c3d4e5f601020304';
 
-  // Aug 15 and 16 2026 are a Saturday and a Sunday, so two of the three visits
-  // carry the +15% weekend surcharge: 30 + 35 + 35, not 3 × 30.
+  // Aug 15 and 16 2026 are a Saturday and a Sunday. Weekends are charged the
+  // regular rate, so the stay is 3 × 30.
   const THREE_VISITS = [
     { date: '2026-08-14', startTime: '09:00', endTime: '09:30' },
     { date: '2026-08-15', startTime: '09:00', endTime: '09:30' },
@@ -714,20 +714,35 @@ describe('the amount quoted for payment', () => {
     const { service, saved, pendingEmails } = serviceWithEmailCapture();
     await service.create(PAYLOAD, clientId);
 
-    expect(saved.map((b) => b.totalAmount)).toEqual([30, 35, 35]);
+    expect(saved.map((b) => b.totalAmount)).toEqual([30, 30, 30]);
 
     expect(pendingEmails).toHaveLength(1);
     const charges = pendingEmails[0][4];
     expect(charges.visitCount).toBe(3);
-    expect(charges.total).toBe(100);
+    expect(charges.total).toBe(90);
+    expect(charges.visits.map((v: any) => v.amount)).toEqual([30, 30, 30]);
+  });
 
-    // The per-visit lines explain why the total is not 3 × $30.
-    expect(charges.visits.map((v: any) => v.category)).toEqual([
-      'weekday',
-      'weekend',
-      'weekend',
-    ]);
-    expect(charges.visits.map((v: any) => v.amount)).toEqual([30, 35, 35]);
+  it('still charges the holiday surcharge', async () => {
+    const { service, saved, pendingEmails } = serviceWithEmailCapture();
+    // Dec 24 2026 is a Thursday, Dec 25 a holiday, Dec 26 a holiday and a Saturday.
+    await service.create(
+      {
+        ...PAYLOAD,
+        startDate: '2026-12-24T09:00:00',
+        endDate: '2026-12-26T09:30:00',
+        visitSlots: [
+          { date: '2026-12-24', startTime: '09:00', endTime: '09:30' },
+          { date: '2026-12-25', startTime: '09:00', endTime: '09:30' },
+          { date: '2026-12-26', startTime: '09:00', endTime: '09:30' },
+        ],
+      },
+      clientId,
+    );
+
+    // 30 × 1.25 = 37.5, rounded to 38.
+    expect(saved.map((b) => b.totalAmount)).toEqual([30, 38, 38]);
+    expect(pendingEmails[0][4].total).toBe(106);
   });
 
   it('still totals correctly for a single-visit booking', async () => {
@@ -740,5 +755,143 @@ describe('the amount quoted for payment', () => {
     const charges = pendingEmails[0][4];
     expect(charges.visitCount).toBe(1);
     expect(charges.total).toBe(30);
+  });
+});
+
+/**
+ * What the client asked for: an existing client already has a regular sitter,
+ * and that sitter should get the booking by email when the client books on the
+ * website — not only after the admin has marked it paid.
+ */
+describe('submitServiceInquiry() from an existing client', () => {
+  const clientId = '64b7f1a2c3d4e5f601020304';
+  const sitterId = '64b7f1a2c3d4e5f6010203aa';
+
+  const INQUIRY = {
+    customerType: 'existing',
+    firstName: 'Test',
+    lastName: 'Client',
+    address: '1 Example St',
+    numberOfPets: 1,
+    petTypes: ['Cat(s)'],
+    service: 'Pet Sitting 30min',
+    startDate: '2026-08-14',
+    endDate: '2026-08-15',
+    startTime: '09:00',
+    endTime: '09:30',
+    phoneNumber: '555-0100',
+    email: 'client@example.com',
+  } as any;
+
+  function serviceForInquiry(opts: {
+    assignedSitterId?: string;
+    sitterActive?: boolean;
+    sitterBusy?: boolean;
+  }) {
+    const client: any = {
+      _id: clientId,
+      email: INQUIRY.email,
+      assignedSitterId: opts.assignedSitterId,
+      save: async () => undefined,
+    };
+    const sitter = opts.sitterActive === false ? null : { _id: sitterId, email: 's@example.com' };
+
+    const saved: any[] = [];
+    const bookingModel: any = function (doc: any) {
+      const record = { ...doc, _id: `visit-${saved.length}` };
+      saved.push(record);
+      return { ...record, save: async () => record };
+    };
+    bookingModel.find = (filter: any) => ({
+      exec: async () =>
+        // The conflict query filters on status; the lookup of the new visits does not.
+        filter.status
+          ? opts.sitterBusy
+            ? [{ sitterId, userId: 'someone-else', startDate: saved[0].startDate, endDate: saved[0].endDate }]
+            : []
+          : saved,
+    });
+    const assigned: any[] = [];
+    bookingModel.updateMany = (filter: any, update: any) => ({
+      exec: async () => {
+        assigned.push({ filter, update });
+        return { modifiedCount: saved.length };
+      },
+    });
+    bookingModel.findById = () => ({
+      populate: () => ({
+        exec: async () => ({
+          ...saved[0],
+          userId: client,
+          sitterId: assigned.length ? sitterId : undefined,
+        }),
+      }),
+    });
+
+    const userModel: any = {
+      findOne: (filter: any) =>
+        filter.email ? Promise.resolve(client) : { exec: async () => sitter },
+      findById: (id: any) => ({
+        exec: async () => (id?.toString() === sitterId ? sitter : client),
+      }),
+    };
+
+    const sitterEmails: any[] = [];
+    const emailService: any = {
+      sendServiceInquiryEmails: async () => undefined,
+      sendSitterAssignmentEmail: async (...args: any[]) => {
+        sitterEmails.push(args);
+      },
+    };
+    const activityLog: any = { log: async () => undefined };
+    const service = new BookingsService(bookingModel, userModel, emailService, activityLog);
+    return { service, saved, assigned, sitterEmails };
+  }
+
+  it('assigns the regular sitter and emails them straight away', async () => {
+    const { service, saved, assigned, sitterEmails } = serviceForInquiry({
+      assignedSitterId: sitterId,
+    });
+    await service.submitServiceInquiry(INQUIRY);
+
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0].update.$set.sitterId.toString()).toBe(sitterId);
+    expect(assigned[0].filter._id.$in).toEqual(saved.map((b) => b._id));
+
+    expect(sitterEmails).toHaveLength(1);
+    expect(sitterEmails[0][2]).toEqual(expect.objectContaining({ email: 's@example.com' }));
+
+    // Still awaiting the admin's confirmation and payment.
+    for (const booking of saved) {
+      expect(booking.status).toBe('pending');
+      expect(booking.paymentStatus).toBe('pending');
+    }
+  });
+
+  it('leaves the visits for the admin when the client has no regular sitter', async () => {
+    const { service, assigned, sitterEmails } = serviceForInquiry({});
+    await service.submitServiceInquiry(INQUIRY);
+    expect(assigned).toHaveLength(0);
+    expect(sitterEmails).toHaveLength(0);
+  });
+
+  it('does not double-book a regular sitter who is busy then', async () => {
+    const { service, assigned, sitterEmails } = serviceForInquiry({
+      assignedSitterId: sitterId,
+      sitterBusy: true,
+    });
+    await service.submitServiceInquiry(INQUIRY);
+    expect(assigned).toHaveLength(0);
+    expect(sitterEmails).toHaveLength(0);
+  });
+
+  it('skips a regular sitter who is no longer an active sitter', async () => {
+    const { service, assigned, sitterEmails } = serviceForInquiry({
+      assignedSitterId: sitterId,
+      sitterActive: false,
+    });
+    await service.submitServiceInquiry(INQUIRY);
+    expect(assigned).toHaveLength(0);
+    expect(sitterEmails).toHaveLength(0);
   });
 });

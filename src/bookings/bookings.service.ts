@@ -11,9 +11,8 @@ import {
 } from '../common/pagination';
 import { BookingChargeSummary, VisitCharge } from '../common/booking-charge';
 
-// Surcharge percentages applied per-day at booking creation time.
-// Kept in sync with the booking form on the web client.
-const WEEKEND_SURCHARGE_PCT = 15;
+// Surcharge applied per-day at booking creation time. Weekends are charged the
+// regular rate. Kept in sync with the booking form on the web client.
 const HOLIDAY_SURCHARGE_PCT = 25;
 const HOLIDAY_MONTH_DAYS = new Set(['01-01', '07-01', '12-25', '12-26']);
 
@@ -82,8 +81,8 @@ function calendarDaysBetween(fromDayKey: string, toDayKey: string): number {
 
 /**
  * Categorize a visit by the calendar day it falls on in business time.
- * The instant alone is not enough: a Friday 9pm Toronto visit is Saturday in UTC,
- * and would otherwise pick up a weekend surcharge it should not have.
+ * The instant alone is not enough: a Dec 24 9pm Toronto visit is Dec 25 in UTC,
+ * and would otherwise pick up a holiday surcharge it should not have.
  */
 function dayCategory(
   date: Date,
@@ -120,9 +119,6 @@ function describeWindow(window: { start: Date; end: Date }, timeZone: string): s
 function applySurcharge(baseAmount: number, category: 'holiday' | 'weekend' | 'weekday'): number {
   if (category === 'holiday') {
     return Math.round(baseAmount * (1 + HOLIDAY_SURCHARGE_PCT / 100));
-  }
-  if (category === 'weekend') {
-    return Math.round(baseAmount * (1 + WEEKEND_SURCHARGE_PCT / 100));
   }
   return baseAmount;
 }
@@ -273,6 +269,54 @@ export class BookingsService {
     } catch (error) {
       console.error('Failed to send sitter assignment notification:', error);
       // Don't throw error - email failure shouldn't break booking assignment
+    }
+  }
+
+  /**
+   * Give a client's new visits to the sitter an admin made their regular one.
+   *
+   * Left unassigned for the admin to place when there is no such sitter, they
+   * are no longer an active sitter, or they are already booked at one of these
+   * times — an inquiry is never rejected over who will take it.
+   */
+  private async attachDefaultSitter(
+    client: UserDocument,
+    bookingIds: Types.ObjectId[],
+  ): Promise<string | undefined> {
+    const sitterId = client.assignedSitterId?.toString().trim();
+    if (!sitterId || !Types.ObjectId.isValid(sitterId) || bookingIds.length === 0) {
+      return undefined;
+    }
+
+    try {
+      const sitter = await this.userModel
+        .findOne({ _id: new Types.ObjectId(sitterId), role: 'sitter', status: 'active' })
+        .exec();
+      if (!sitter) {
+        console.log(`Default sitter ${sitterId} is not an active sitter; inquiry left unassigned`);
+        return undefined;
+      }
+
+      const visits = await this.bookingModel.find({ _id: { $in: bookingIds } }).exec();
+      const { sitterConflicts } = await this.findVisitConflicts(
+        visits.map((v) => ({ start: new Date(v.startDate), end: new Date(v.endDate) })),
+        { sitterId },
+      );
+      if (sitterConflicts.length > 0) {
+        console.log(`Default sitter ${sitterId} is already booked then; inquiry left unassigned`);
+        return undefined;
+      }
+
+      await this.bookingModel
+        .updateMany(
+          { _id: { $in: bookingIds } },
+          { $set: { sitterId: new Types.ObjectId(sitterId) } },
+        )
+        .exec();
+      return sitterId;
+    } catch (error) {
+      console.error('Failed to attach default sitter to inquiry:', (error as Error)?.message || error);
+      return undefined;
     }
   }
 
@@ -464,6 +508,11 @@ export class BookingsService {
     
     console.log(`✅ Successfully created ${bookingIds.length} bookings:`, bookingIds.map(id => id.toString()));
 
+    // An existing client usually has a regular sitter. Hand the visits to them
+    // now, as booking from the client's account does, so the sitter hears about
+    // the booking when it is made rather than only once it has been paid for.
+    const defaultSitterId = await this.attachDefaultSitter(user, bookingIds);
+
     try {
       await this.activityLogService.log(
         user._id.toString(),
@@ -475,6 +524,7 @@ export class BookingsService {
           numberOfPets: serviceInquiryDto.numberOfPets,
           bookingCount: bookingIds.length,
           totalEstimatedCost,
+          defaultSitterId,
         },
         bookingIds[0]?.toString(),
         'booking',
@@ -493,6 +543,10 @@ export class BookingsService {
     if (firstBooking) {
       console.log(`📧 Sending service inquiry notification emails...`);
       await this.sendServiceInquiryNotifications(firstBooking, startDate, endDate);
+
+      if (defaultSitterId) {
+        await this.sendSitterAssignmentNotification(firstBooking, startDate, endDate);
+      }
     }
 
     return {
@@ -525,7 +579,7 @@ export class BookingsService {
     const startDate = windows[0].start;
     const endDate = windows[windows.length - 1].end;
     const bookingGroupId = windows.length > 1 ? randomUUID() : undefined;
-    // The incoming totalAmount is the weekday rate for a single visit (rate × pets);
+    // The incoming totalAmount is the regular rate for a single visit (rate × pets);
     // each visit's record gets a surcharge based on its own date category.
     const basePerVisit = createBookingDto.totalAmount;
 
